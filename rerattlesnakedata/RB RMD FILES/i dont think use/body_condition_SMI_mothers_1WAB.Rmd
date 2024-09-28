@@ -1,0 +1,144 @@
+---
+title: "Body Condition Wrangling - all pregnant snakes 1wac"
+author: "Robin Bedard"
+date: "2022"
+output: pdf_document
+toc: TRUE
+---
+
+# Compute Scaled Mass Index
+
+This is also known as the body condition index, or log-log residuals.
+
+I calculate as described by: Peig, J., & Green, A. J. (2009). New perspectives for estimating body condition from mass/length data: The scaled mass index as an alternative method. Oikos, 118(12), 1883–1891. https://doi.org/10.1111/j.1600-0706.2009.17643.x
+
+### Step 1: Simple Linear Regression
+
+```{r SMI SLR}
+full_dat <- readRDS("/Users/robinbedard/Desktop/Thesis/RDS_files/mother_data_all_final_8.RDS")
+
+SLR_dat <- full_dat %>% dplyr::filter(Preg_Stage == "1WAB")
+mass_SVL_SLR <- lm(data = SLR_dat, Mass_g ~ SVL_cm)
+summary(mass_SVL_SLR)
+```
+
+
+### Step 2: Identify Outliers
+
+```{r SMI equation outliers 1}
+plot(mass_SVL_SLR)
+```
+
+The conditions of linearity, equal error variance, and normality are all satisfied. It doesn't look like any residuals are >3 or <-3.
+
+```{r SMI equation outliers 2}
+boxplot(residuals(mass_SVL_SLR))
+hist(residuals(mass_SVL_SLR))
+```
+
+From the boxplot, there is one individual with a much higher residual than the rest of the distribution. The histogram looks beautiful and incredibly normally distributed.
+
+Check average residual value:
+
+```{r SMI equation outliers 3}
+mean(residuals(mass_SVL_SLR))
+median(residuals(mass_SVL_SLR))
+```
+
+The mean is basically zero and the median is pretty close to zero, which is very good.
+
+Check for high leverage points:
+
+```{r SMI equation outliers 4}
+# compute values for observations 
+high_leverage <- data.frame(H = hatvalues(mass_SVL_SLR)) %>% 
+  mutate(row = row_number())
+
+# compute cutoff value 
+h_bar <- (3*sum(high_leverage$H))/nrow(high_leverage)
+
+# add to original dataframe 
+# see which observations have extremely high leverage (if any)
+high_leverage_dat <- SLR_dat %>%
+  mutate(row = row_number()) %>%
+  left_join(., high_leverage, by = "row") %>%
+  dplyr::filter(H > h_bar) 
+high_leverage_dat
+```
+
+No points are considered high leverage, which is fantastic.
+
+Check for influential points based on Cook's distance:
+
+```{r SMI equation outliers 5}
+# get Cook's distance 
+cooks <- data.frame(c = cooks.distance(mass_SVL_SLR)) %>% 
+  mutate(row = row_number())
+
+# add to original dataframe 
+influential <- SLR_dat %>%
+  mutate(row = row_number()) %>% 
+  left_join(., cooks, by = "row")
+
+# see moderately influential points 
+cook_mod_inf <- influential %>% 
+  dplyr::filter(c>0.5) 
+cook_mod_inf
+```
+
+There are no infuential points based on Cook's distance, so there's nothing to potentially remove.
+
+We could remove the one outlier found using the boxplot, but it's the only one, so we will leave it in the dataset. No points were indicated to be outliers based on residuals or a histogram, and there were no high leverage or influential points. Thus I can create a log-log model using the data as-is. Observation omissions are unlikely to increase generalizability.
+
+
+ 
+### Step 3: log-log Regression
+
+```{r SMI log log regression}
+log_mass_SVL_SLR <- lm(data = SLR_dat, log(Mass_g) ~ log(SVL_cm))
+summary(log_mass_SVL_SLR)
+```
+
+
+### Step 4: Extract Values
+
+compute standardized major axis using the log-log regression equation:
+
+```{r SMI equation}
+r <- sqrt(0.7209) # Pearson's correlection coefficient (sqrt of R-squared)
+b_OLS <- 1.6175 # regression slope
+b_SMA <- b_OLS/r
+b_SMA
+```
+
+mean length in capture data:
+
+```{r mean SVL}
+L0 <- mean(SLR_dat$SVL_cm)
+L0
+```
+
+
+### Step 5: Calculate Scaled Mass Index
+
+Add SMI to an updated full_dat df - full_dat2
+
+```{r join all data}
+full_dat2 <- full_dat %>%
+  # compute SMI
+  mutate(SMI = Mass_g * ((77.375/SVL_cm) ^ 1.905052))
+
+
+ggplot(full_dat2) + 
+  geom_point(aes(x = Mass_g,
+                 y = SMI))
+```
+
+
+
+
+
+
+
+
+

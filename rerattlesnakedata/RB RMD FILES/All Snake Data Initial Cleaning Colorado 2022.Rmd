@@ -1,0 +1,294 @@
+---
+title: "All Snake Data Initial Cleaning Colorado 2022"
+author: "Robin Bedard"
+date: '2022-12-01'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#2022 Inital Measurement Data Cleaning
+Uploading and cleaning the data from all intial measurements from 2022. 
+
+```{r}
+library(dplyr)
+library(tidyverse)
+
+setwd("/Users/robinbedard/Desktop/Thesis/csv files")
+all_viridis <- read.csv("All_captured_initial_measurements.csv", skip = 1)
+```
+
+Removing trailing white space or any weird characters, then properly classing each column of the data, then renaming and selecting all of the columns I want to keep.
+
+```{r}
+#remove white space, classing
+
+all_viridis_clean <- all_viridis %>%
+  mutate(IndivID = as.factor(str_trim(IndivID)),
+         Sex = as.factor(str_trim(Sex)),
+         RookeryCaptureID = as.factor(str_trim(RookeryCaptureID)),
+         LifeStage.. = as.factor(str_trim(LifeStage..)),
+         Pregnant = as.factor(str_trim(Pregnant)),
+         Mass.g. = as.numeric(str_trim(Mass.g.)),
+         SVL.cm. = as.numeric(str_trim(SVL.cm.)),
+         ShedStage = as.factor(str_trim(ShedStage)),
+         TbCEWL.C. = as.numeric(str_trim(TbCEWL.C.)),
+         DateofCapture = as.Date(str_trim(DateofCapture),
+                                 format = "%m-%d-%y"),
+         CEWL.BloodCollectDate = as.Date(str_trim(CEWL.BloodCollectDate),
+                                         format = "%m-%d-%y"),
+         DateBloodAnalyzed = as.Date(str_trim(DateBloodAnalyzed),
+                                     format = "%m-%d-%y"),
+         PlasmaOsmolalityRep1.mmol.kg. = as.numeric(str_trim(PlasmaOsmolalityRep1.mmol.kg.)),
+         PlasmaOsmolalityRep2.mmol.kg. = as.numeric(str_trim(PlasmaOsmolalityRep2.mmol.kg.)),
+         PlasmaOsmolalityRep3.mmol.kg. = as.numeric(str_trim(PlasmaOsmolalityRep3.mmol.kg.)),
+         PlasmaOsmolalityRep4.mmol.kg. = as.numeric(str_trim(PlasmaOsmolalityRep4.mmol.kg.)),
+         
+         ) %>%
+  
+#rename all column names 
+  
+  dplyr::select(Indiv_ID = IndivID, Rookery_Capture_ID = RookeryCaptureID, Date_of_Capture = DateofCapture, Sex = Sex, Pregnant = Pregnant, SVL_cm = SVL.cm., Life_Stage = LifeStage.., Mass_g = Mass.g., Shed_Stage = ShedStage, Tb_at_CEWL = TbCEWL.C.,CEWL_Blood_Collect_Date = CEWL.BloodCollectDate, Date_Blood_Analyzed = DateBloodAnalyzed, Plasma_Osmol_Rep1 = PlasmaOsmolalityRep1.mmol.kg., Plasma_Osmol_Rep2 = PlasmaOsmolalityRep2.mmol.kg., Plasma_Osmol_Rep3 = PlasmaOsmolalityRep3.mmol.kg., Plasma_Osmol_Rep4 = PlasmaOsmolalityRep4.mmol.kg.)
+
+summary(all_viridis_clean)
+```
+
+Creating two separate data frames. One that has all of the measurements that are not related to the blood. Another that has all of the measurements related to blood. They will be added back together later, on a separate Rmarkdown, after the blood analysis has been completed.
+
+```{r}
+#selecting out only the measurements that are not related to blood. 
+final_all_viridis_initial <- all_viridis_clean %>%
+  dplyr::select(Indiv_ID, Rookery_Capture_ID, Date_of_Capture, Sex, Pregnant, SVL_cm, Life_Stage, Mass_g, Shed_Stage, Tb_at_CEWL, CEWL_Blood_Collect_Date, Date_Blood_Analyzed)
+
+#selecting out all of the measurements related to blood. These will then be used to calculate the plasma osmolarity mean for all technical replicates. 
+all_viridis_initial_osmol_temp <- all_viridis_clean %>%
+  dplyr::select(-c(Rookery_Capture_ID, Date_of_Capture, Sex, Pregnant, SVL_cm, Life_Stage, Mass_g, Shed_Stage, Tb_at_CEWL))
+```
+
+Saving the dataframes and uploading blood df to a new Rmd to do the blood wrangling, then adding them all together to create the final df. 
+
+```{r}
+saveRDS(final_all_viridis_initial, "/Users/robinbedard/Desktop/Thesis/RDS_Files/final_all_viridis_initial.RDS")
+
+saveRDS(all_viridis_initial_osmol_temp, "/Users/robinbedard/Desktop/Thesis/RDS_Files/all_viridis_initial_osmol_temp.RDS")
+```
+
+#Mother Data Cleaning
+Uploading the pregnant mother dataframe and cleaning. Basically doing what was done above for all snakes 2022.
+
+Loading the data
+
+```{r}
+setwd("/Users/robinbedard/Desktop/Thesis/csv files")
+
+mother_viridis <- read.csv("Mothers Data Collection Sheet (DA water masses removed, edited for R) - Sheet1 (1).csv", skip = 1)
+```
+
+Removing trailing white space or any weird characters, then properly classing each column of the data, then renaming and selecting all of the columns I want to keep. Then using fill() to fill the empty spaces with the proper values. 
+
+```{r}
+mother_viridis_clean <- mother_viridis %>%
+  mutate(IndivID = as.factor(str_trim(IndivID)),
+         RookeryCaptureID = as.factor(str_trim(RookeryCaptureID)),
+         HydrationTreatment = as.factor(str_trim(HydrationTreatment)),
+         Mass.g. = as.numeric(str_trim(Mass.g.)),
+         SVL.cm. = as.numeric(str_trim(SVL.cm.)),
+         ShedStage = as.factor(str_trim(ShedStage)),
+         TbCEWL.C. = as.numeric(str_trim(TbCEWL.C.)),
+         DateofParturition = as.Date(str_trim(DateOfParturition),
+                                 format = "%m-%d-%y"),
+         TimeOfParturition = as.POSIXct(str_trim(TimeOfParturition),
+                                 format = "%H:%M"),
+         CEWL.BloodCollectDate = as.Date(str_trim(CEWL.BloodCollectDate),
+                                         format = "%m-%d-%y"),
+         DateBloodAnalyzed = as.Date(str_trim(DateBloodAnalyzed),
+                                     format = "%m-%d-%y"), 
+         LiveOffspring = as.numeric(str_trim(LiveOffspring)),
+         DeadOffspring = as.numeric(str_trim(DeadOffspring)),
+         Slugs = as.numeric(str_trim(Slugs)), 
+         StageOfPregnancy = as.factor(str_trim(StageOfPregnancy))
+         
+  ) %>%
+  
+#rename all columns 
+  
+  dplyr::select(Indiv_ID = IndivID, Rookery_Capture_ID = RookeryCaptureID, Hydration_Trmt = HydrationTreatment, Mass_g = Mass.g., SVL_cm = SVL.cm., Shed_Stage = ShedStage, Tb_at_CEWL = TbCEWL.C., Date_Parturition = DateofParturition, Time_Parturition = TimeOfParturition, Preg_Stage = StageOfPregnancy, CEWL_Blood_Collect_Date = CEWL.BloodCollectDate, Date_Blood_Analyzed = DateBloodAnalyzed, Plasma_Osmol_Rep1 = PlasmaOsmolalityRep1.mmol.kg., Plasma_Osmol_Rep2 = PlasmaOsmolalityRep2.mmol.kg., Plasma_Osmol_Rep3 = PlasmaOsmolalityRep3.mmol.kg., Plasma_Osmol_Rep4 = PlasmaOsmolalityRep4.mmol.kg.) %>%
+  
+#fill in all of the empty spaces below the individual ID with the repeated ID
+  fill(Indiv_ID)
+
+```
+
+Creating a new data frame called "temp" selecting out all of the measurements that are not repeated. These measurements were only taken once (ID, Rookery capture, treatment, SVL, dates).
+
+```{r}
+temp <- mother_viridis_clean %>% dplyr::select(Indiv_ID, Rookery_Capture_ID, Hydration_Trmt, SVL_cm, Date_Parturition, Time_Parturition) %>%
+  dplyr::filter(complete.cases(SVL_cm))
+```
+
+Creating a new data frame called final_mother_viridis selecting out all of the measurements that are repeated. Did this by using the -c to deselect all of the ones above, automatically keeping the other ones that are repeated. Also took out the plasma osmolarity measurements because we don't want them right now. They will be analyzed separately in a different data frame and on a separate RMD. 
+
+Then, joining the temp data frame to the final_mother_viridis data frame. This will fill in all of the NA spaces where the merged cells caused issues. This is the final mother data frame that can be used for analysis. It does not include osmolarity measurements. That will be separate. 
+
+```{r}
+final_mother_viridis <- mother_viridis_clean %>% dplyr::select(-c(Rookery_Capture_ID, Hydration_Trmt, SVL_cm, Date_Parturition, Time_Parturition, Date_Blood_Analyzed, Plasma_Osmol_Rep1, Plasma_Osmol_Rep2, Plasma_Osmol_Rep3, Plasma_Osmol_Rep4)) %>%
+
+  left_join(temp, by = "Indiv_ID")
+```
+
+Creating a data frame called osmolality1 that will include all of the osmolarity data from the mother viridis, the indiv ID, blood collect date, and blood analyzed date.
+
+```{r}
+osmolality1 <- mother_viridis_clean %>% dplyr::select(Indiv_ID, CEWL_Blood_Collect_Date, Date_Blood_Analyzed, Preg_Stage, Hydration_Trmt, Plasma_Osmol_Rep1, Plasma_Osmol_Rep2, Plasma_Osmol_Rep3, Plasma_Osmol_Rep4)
+```
+
+Saving the osmolarity data frame to a RDS file. This needs to be saved separately for some reason that I don't really understand but it has to do with it automatically uploading when you open a file. Save it and upload the RDS file to the RMD that Savannah sent for analyzing the osmolarity data. 
+
+```{r}
+saveRDS(osmolality1, "/Users/robinbedard/Desktop/Thesis/MotherOsmolality.RDS")
+
+saveRDS(final_mother_viridis, "/Users/robinbedard/Desktop/Thesis/FinalMotherViridis.RDS")
+```
+
+#Neonates Day After Birth Data Cleaning
+
+loading data from all neonate snakes day after birth
+
+```{r}
+setwd("/Users/robinbedard/Desktop/Thesis/csv files")
+
+neonate_viridis_DAB <- read.csv("Neonates Day After Birth Msmnts. - Sheet1.csv", skip = 1)
+```
+
+```{r}
+neonate_viridis_DAB_clean <- neonate_viridis_DAB %>%
+  mutate(IndivID = as.factor(str_trim(IndivID)),
+         DateBorn = as.Date(str_trim(DateBorn),
+                            format = "%m-%d-%y"),
+         TailLength.cm. = as.numeric(str_trim(TailLength.cm.)),
+         SVL.cm. = as.numeric(str_trim(SVL.cm.)),
+         TailLength.SVLRatio = as.numeric(str_trim(TailLength.SVLRatio)),
+         Sex = as.factor(str_trim(Sex)),
+         MotherID = as.factor(str_trim(MotherID)),
+         Treatment = as.factor(str_trim(Treatment)),
+         CEWL.BloodCollectDate = as.Date(str_trim(CEWL.BloodCollectDate),
+                              format = "%m-%d-%y"),
+         TbCEWL.C. = as.numeric(str_trim(TbCEWL.C.)),
+         Mass.g. = as.numeric(str_trim(Mass.g.)),
+         DateBloodAnalyzed = as.Date(str_trim(DateBloodAnalyzed),
+                              format = "%m-%d-%y"),
+         Pee = as.factor(str_trim(Pee))
+         )
+neonate_viridis_DAB_clean$Treatment[26] <- "W"
+summary(neonate_viridis_DAB_clean)
+
+#Rename all of the column names 
+neonate_viridis_DAB_clean <- neonate_viridis_DAB_clean %>%
+  dplyr::select(Indiv_ID = IndivID, Date_Born = DateBorn, Tail_Length_cm = TailLength.cm., SVL_cm = SVL.cm., Tail_SVL_Ratio = TailLength.SVLRatio, Mass_g = Mass.g., Sex = Sex, Mother_ID = MotherID, Treatment = Treatment, CEWL_Blood_Collect_Date = CEWL.BloodCollectDate, Tb_CEWL_c = TbCEWL.C., Date_Blood_Analyzed = DateBloodAnalyzed, Pee = Pee, Plasma_Osmol_Rep1 = PlasmaOsmolalityRep1.mmol.kg., Plasma_Osmol_Rep2 = PlasmaOsmolalityRep2.mmol.kg., Plasma_Osmol_Rep3 = PlasmaOsmolalityRep3.mmol.kg., Plasma_Osmol_Rep4 = PlasmaOsmolalityRep4.mmol.kg.)
+
+final_neonate_dab <- neonate_viridis_DAB_clean %>%
+  dplyr::select(Indiv_ID, Date_Born, Tail_Length_cm, SVL_cm, Tail_SVL_Ratio, Mass_g, Sex, Mother_ID, Treatment, Tb_CEWL_c, Pee, CEWL_Blood_Collect_Date)
+
+neonate_osmol_temp <- neonate_viridis_DAB_clean %>%
+  dplyr::select(-c(Date_Born, Tail_Length_cm, SVL_cm, Tail_SVL_Ratio, Mass_g, Sex, Mother_ID, Treatment, Tb_CEWL_c, Pee))
+```
+
+```{r}
+saveRDS(final_neonate_dab, "/Users/robinbedard/Desktop/Thesis/RDS_Files/FinalNeonateDAB.RDS")
+
+saveRDS(neonate_osmol_temp, "/Users/robinbedard/Desktop/Thesis/RDS_Files/NeonateOsmolarityDAB.RDS")
+```
+
+#Neonates Day After Shed Data Cleaning
+
+```{r}
+setwd("/Users/robinbedard/Desktop/Thesis/csv files")
+
+neonate_viridis_PS <- read.csv("Neonates Post Shed Msmnts. - Sheet1.csv", skip = 1)
+```
+
+```{r}
+neonate_viridis_PS_clean <- neonate_viridis_PS %>%
+  mutate(IndivID = as.factor(str_trim(IndivID)),
+         DateBorn = as.Date(str_trim(DateBorn),
+                            format = "%m-%d-%y"),
+         DateShed = as.Date(str_trim(DateShed),
+                            format = "%m-%d-%y"),
+         TailLength. = as.numeric(str_trim(TailLength.)),
+         SVL = as.numeric(str_trim(SVL)),
+         TailLength.SVLRatio = as.numeric(str_trim(TailLength.SVLRatio)),
+         Sex = as.factor(str_trim(Sex)),
+         MotherID = as.factor(str_trim(MotherID)),
+         Treatment = as.factor(str_trim(Treatment)),
+         CEWL.BloodCollectDate = as.Date(str_trim(CEWL.BloodCollectDate),
+                                         format = "%m-%d-%y"),
+         TbCEWL.C. = as.numeric(str_trim(TbCEWL.C.)),
+         Mass.g. = as.numeric(str_trim(Mass.g.)),
+         DateBloodAnalyzed = as.Date(str_trim(DateBloodAnalyzed),
+                                     format = "%m-%d-%y"),
+         Pee = as.factor(str_trim(Pee))
+  )
+
+summary(neonate_viridis_PS_clean)
+
+#Rename all of the column names 
+neonate_viridis_PS_clean <- neonate_viridis_PS_clean %>%
+  dplyr::select(Indiv_ID = IndivID, Date_Born = DateBorn, Date_Shed = DateShed, Tail_Length_cm = TailLength., SVL_cm = SVL, Tail_SVL_Ratio = TailLength.SVLRatio, Mass_g = Mass.g., Sex = Sex, Mother_ID = MotherID, Treatment = Treatment, CEWL_Blood_Collect_Date = CEWL.BloodCollectDate, Tb_CEWL_c = TbCEWL.C., Date_Blood_Analyzed = DateBloodAnalyzed, Pee = Pee, Plasma_Osmol_Rep1 = PlasmaOsmolalityRep1.mmol.kg., Plasma_Osmol_Rep2 = PlasmaOsmolalityRep2.mmol.kg., Plasma_Osmol_Rep3 = PlasmaOsmolalityRep3.mmol.kg., Plasma_Osmol_Rep4 = PlasmaOsmolalityRep1.mmol.kg..1)
+```
+
+I separated out the different data frames on the neonate post shed anaylsis RMD. 
+
+```{r}
+saveRDS(neonate_viridis_PS_clean, "/Users/robinbedard/Desktop/Thesis/RDS_Files/neonate_postshed_clean.RDS")
+```
+
+#2021 Snake Data Cleaning
+
+This is the data that Emily collected in the Spring of 2021. I will be using the data to add to my dataset. 
+
+```{r}
+setwd("/Users/robinbedard/Desktop/Thesis/csv files")
+
+viridis_2021 <- read.csv("/Users/robinbedard/Desktop/Thesis/csv files/2021_ Crotalus viridis CEWL data Dorsal Only .csv")
+```
+
+```{r}
+viridis_2021_clean <- viridis_2021 %>%
+  mutate(Indiv_ID = as.factor(str_trim(Indiv_ID)),
+         Sex = as.factor(str_trim(Sex)),
+         Life_Stage = as.factor(str_trim(Life_Stage)),
+         Pregnant = as.factor(str_trim(Pregnant)),
+         Mass_g = as.numeric(str_trim(Mass_g)),
+         SVL_cm = as.numeric(str_trim(SVL_cm)),
+         Tb_at_CEWL = as.numeric(str_trim(Tb_at_CEWL)),
+         CEWL_Blood_Collect_Date = as.Date(str_trim(CEWL_Blood_Collect_Date),
+                                         format = "%m/%d/%y"),
+         Plasma_Osmol_Rep_mean = as.numeric(str_trim(Plasma_Osmol_Rep_mean)),
+         CEWL_g_m2h = as.numeric(str_trim(CEWL_g_m2h)),
+         msmt_temp_C = as.numeric(str_trim(msmt_temp_C)),
+         msmt_RM_percent = as.numeric(str_trim(msmt_RM_percent))
+  ) %>%
+  
+  dplyr::select(Indiv_ID = Indiv_ID, Sex = Sex, Life_Stage = Life_Stage, Pregnant = Pregnant, Mass_g = Mass_g, SVL_cm = SVL_cm, calibrated_cloacal_temp = Tb_at_CEWL, CEWL_Blood_Collect_Date = CEWL_Blood_Collect_Date, Plasma_Osmol_Rep_mean = Plasma_Osmol_Rep_mean, CEWL_g_m2h = CEWL_g_m2h, msmt_temp_C = msmt_temp_C, msmt_RH_percent = msmt_RM_percent)
+```
+
+```{r}
+saveRDS(viridis_2021_clean, "/Users/robinbedard/Desktop/Thesis/RDS_Files/viridis_2021_clean.RDS")
+```
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+

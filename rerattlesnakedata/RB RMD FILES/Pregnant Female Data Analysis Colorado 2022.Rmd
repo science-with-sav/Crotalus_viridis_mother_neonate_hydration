@@ -1,0 +1,2204 @@
+---
+title: "Pregnant Female Data Analysis Colorado 2022"
+author: "Robin Bedard"
+date: '2023-01-12'
+output: pdf_document
+---
+Loading required packages
+```{r}
+`%nin%` = Negate(`%in%`)
+library("ggpubr")
+library("lme4")
+library("dplyr")
+library("tidyverse")
+library("stringr")
+library("tidyr")
+library("PerformanceAnalytics")
+library("lmerTest")
+library("readr")
+library("emmeans")
+```
+
+#Cleaning and Organizing
+```{r}
+setwd("/Users/robinbedard/Desktop/Thesis/RDS_files")
+
+#Body measurement and measurements that are not replicated
+mother_data_final <- read_rds("FinalMotherViridis.RDS") 
+#Osmolarity data after outliers were removed and replicates were averaged 
+mother_temp_osm <- read_rds("clean_MotherOsmolality.RDS")
+##merging the two data frames so osmolarity data is with all other data
+mother_data_all_final <- left_join(mother_data_final, mother_temp_osm, by =c("Indiv_ID", "CEWL_Blood_Collect_Date"))
+```
+Some data cleaning...
+Factoring the pregnancy stages so that they are plotted in the proper order. 
+```{r}
+mother_data_all_final$Preg_Stage <- factor(mother_data_all_final$Preg_Stage, levels = c("DAC", "1WAC", "2WAC", "DAB", "1WAB")) 
+```
+Uploading the RDS file that has ALL of the data to do CEWL analysis. This has all body measurements, all CEWL measurements, and all osmolarity measurements for the mothers. CEWL measurements were analyzed on a separate RMD then joined with other dataframe. 
+```{r}
+mother_data_all_final_2 <- readRDS("/Users/robinbedard/Desktop/Thesis/RDS_files/mother_data_all_final_2.RDS")
+```
+
+This dataframe includes a column "Day Relative" which is the number of days, relative to the day they gave birth, that the measurements were taken.
+```{r}
+setwd("/Users/robinbedard/Desktop/Thesis/csv files") 
+day_scale <- read.csv("DAY RELATIVE TO DAY OF BIRTH - Sheet1.csv")
+
+day_scale_clean <- day_scale %>%
+  mutate(IndivID = as.factor(str_trim(IndivID)),
+         CEWL.BloodCollectDate = as.Date(str_trim(CEWL.BloodCollectDate),
+                                         format = "%m-%d-%y"),
+         DayRelativeToZero = as.numeric(DayRelativeToZero)
+  ) %>%
+  #rename all column names 
+  dplyr::select(Indiv_ID = IndivID, CEWL_Blood_Collect_Date = CEWL.BloodCollectDate, Day_Relative = DayRelativeToZero)  %>%
+fill(Indiv_ID)
+
+#joining the final table with the day relative to birth column to create a new final dataset 
+mother_data_all_final_3 <- left_join(mother_data_all_final_2, day_scale_clean, by = c("Indiv_ID", "CEWL_Blood_Collect_Date"))
+```
+
+Averaging the osmolarities by day relative by treatment group
+```{r}
+osmol_means_by_tmt_dayrelative <- mother_data_all_final_3 %>%
+  group_by(Day_Relative, Hydration_Trmt) %>%
+  summarise(mean = mean(Plasma_Osmol_Rep_mean))
+```
+First, uploading the CSV with the new column of days relative to number of days in hydration treatment
+```{r}
+setwd("/Users/robinbedard/Desktop/Thesis/csv files") 
+days_in_tmt <- read.csv("DAYS IN TREATMENT - Sheet1.csv")
+```
+
+```{r}
+days_in_tmt_clean <- days_in_tmt %>%
+  mutate(IndivID = as.factor(str_trim(IndivID)),
+         CEWL.BloodCollectDate = as.Date(str_trim(CEWL.BloodCollectDate),
+                                         format = "%m-%d-%y"),
+         DaysInTrmt = as.numeric(DaysInTrmt),
+         GaveBirth = as.factor(GaveBirth)
+  ) %>%
+  #rename all column names 
+  dplyr::select(Indiv_ID = IndivID, CEWL_Blood_Collect_Date = CEWL.BloodCollectDate, Days_in_Treatment = DaysInTrmt, Gave_Birth = GaveBirth)  %>%
+  fill(Indiv_ID)
+```
+
+Joining the final table with the days in treatment column to create a new final data set 
+```{r}
+mother_data_all_final_4 <- left_join(mother_data_all_final_3, days_in_tmt_clean, by = c("Indiv_ID", "CEWL_Blood_Collect_Date"))
+```
+
+Averaging the osmolarities by days in treatments group
+```{r}
+osmol_means_by_days_in_tmt <- mother_data_all_final_4 %>%
+  group_by(Days_in_Treatment, Hydration_Trmt, Gave_Birth) %>%
+  summarise(mean = mean(Plasma_Osmol_Rep_mean))
+```
+
+Now I am trying to get the change in osmolarity to compare the changes over time. 
+Downloading the sheet to calculate the change is osmolarity for each mother. Then reuploading.
+```{r}
+write.csv(mother_data_all_final_4, "/Users/robinbedard/Desktop/Thesis/csv files/All.mother.data.csv")
+
+relative_osmolarities <- read.csv("/Users/robinbedard/Desktop/Thesis/csv files/osmol_relative_change.csv")
+relative_osmolarities <- relative_osmolarities[ , c(1, 2, 4)]
+
+relative_osmolarities <- relative_osmolarities %>%
+  mutate(Indiv_ID = as.factor(str_trim(Indiv_ID)),
+         CEWL_Blood_Collect_Date = as.Date(str_trim(CEWL_Blood_Collect_Date),
+                                         format = "%m/%d/%y"))
+
+#joining it to the final df
+mother_data_all_final_5 <- full_join(mother_data_all_final_4, relative_osmolarities, by = c("Indiv_ID", "CEWL_Blood_Collect_Date"))
+```
+
+```{r}
+relative_cewl <- read.csv("/Users/robinbedard/Desktop/Thesis/csv files/mother_changecewl.csv")
+  
+relative_cewl <- relative_cewl[ , c(1, 2, 4, 5)]
+  
+relative_cewl <- relative_cewl %>%
+    mutate(Indiv_ID = as.factor(str_trim(Indiv_ID)),
+           CEWL_Blood_Collect_Date = as.Date(str_trim(CEWL_Blood_Collect_Date),
+                                             format = "%m/%d/%y"))
+  
+mother_data_all_final_6 <- full_join(mother_data_all_final_5, relative_cewl, by = c("Indiv_ID", "CEWL_Blood_Collect_Date"))
+
+relative_osmol_means <- mother_data_all_final_6 %>%
+  group_by(Day_Relative, Hydration_Trmt) %>%
+  summarise(mean = mean(Change_in_osmol))
+```
+##Thermocouple Calibration
+First, I need to change an error in the data that has a body temperature of 75.5 for an individual measurement for snake 124. Should be 25.5.
+```{r}
+mother_data_all_final_6[55, 4] <- 25.5
+```
+
+Calibrating the body temperature data so that we know the recorded temperatures are accurate.
+Uploading the csv files that has the thermocouple calibration data on it and the thermocouple reference sheet. Joining them together. 
+```{r}
+setwd("/Users/robinbedard/Desktop/Thesis/csv files")
+thermo_c <- read.csv("thermoc_calibration.csv")
+thermo_coupl <- thermo_c %>%
+  dplyr::select(Time, Value) %>% 
+  mutate(Time = as.POSIXct(substr(Time, 1,5), format = "%H:%M"))
+
+thermo_ref <- read.csv("thermalcouple_c_reference.csv") %>% 
+  mutate(Time = as.POSIXct(Time, format = "%H:%M"))
+
+thermo_c_final <- left_join(thermo_coupl, thermo_ref, by = "Time")
+```
+Calibrate Thermocouple Data:
+First, calculate and save regression curves..
+```{r}
+# calculate regression curves
+regression_a <- lm(data = thermo_c_final,
+                   Value ~ Temp)
+
+# create df to store calibration equations
+TC_calibration <- data.frame(TC_A = (coef(regression_a))) %>%
+  `rownames<-`(c("intercept", "slope"))
+
+#Next, use calibration curves to correct the data we measured:
+# this applies respective calibration equation
+# to all cloacal thermocouple data points of that proper thermocouple
+# 2=slope & 1=intercept
+
+mother_data_all_final_7 <- mother_data_all_final_6 %>%
+  mutate(calibrated_cloacal_temp = Tb_at_CEWL*TC_calibration$TC_A[2] +
+           TC_calibration$TC_A[1])
+
+summary(mother_data_all_final_7)
+```
+Now I have a new column with the calibrated cloacal temperature at the time the measurement was taken. 
+
+##Body Condition
+Getting the log of SVL and the log of Mass
+```{r}
+mother_data_all_final_8 <- mother_data_all_final_7 %>%
+  mutate(log_Mass = log10(Mass_g)) %>%
+  mutate(log_SVL = log10(SVL_cm))
+
+ggplot(data = mother_data_all_final_8, aes(x = log_SVL, y = log_Mass)) +
+  geom_point()
+
+bc_lm <- lm(data = mother_data_all_final_8, log_Mass ~ log_SVL)
+mother_data_all_final_8$Body_Condition <- bc_lm$resid
+```
+
+#Basic Results
+```{r}
+temp <- filter(mother_data_all_final_8, Preg_Stage == "DAC")
+babies <- c(6, NA, 7, 8, 6, NA, NA, NA, NA, 12, NA, 9, 10, NA, 5, 10, NA, NA, 6, 8, 10, 8, 8, 8, NA, 5, 13, 8, 7)
+results <- cbind(temp, babies)
+
+#30 females total
+dplyr::count(results, Gave_Birth)
+#19 gave birth but 1 individual was the day before we left so 18 in study.
+
+mean(results$babies, na.rm = TRUE)
+
+dplyr::count(results, Hydration_Trmt)
+
+results %>%
+  filter(Gave_Birth == "Y") %>%
+  dplyr::count(Hydration_Trmt)
+
+clutch_bodycond_df <- results %>%
+  filter(Gave_Birth == "Y")
+
+clutch_bodycond_lm <- lm(data = clutch_bodycond_df, babies ~ Body_Condition)
+summary(clutch_bodycond_lm)
+
+ggplot(data = clutch_bodycond_df, aes(x  = Body_Condition, y = babies)) +
+  geom_point()
+
+#clutch size is not related to body condition. 
+```
+
+#Plotting Osmolarity Raw Data 
+##Osmolarity vs. SVL
+```{r}
+ggplot(data = mother_data_all_final_8, aes(x = SVL_cm, y = Plasma_Osmol_Rep_mean, colour = Hydration_Trmt)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "SVL (cm)", y = "Plasma Osmolarity (mmol/kg)")
+```
+
+##Osmolarity vs. Mass
+```{r}
+ggplot(data = mother_data_all_final_8, aes(x = Mass_g, y = Plasma_Osmol_Rep_mean, colour = Hydration_Trmt)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Mass (g)", y = "Plasma Osmolarity (mmol/kg)")
+```
+
+##Osmolarity vs. Shed Stage
+```{r}
+ggplot(data = mother_data_all_final_8, aes(x = Shed_Stage, y = Plasma_Osmol_Rep_mean, colour = Hydration_Trmt)) +
+  geom_boxplot() +
+  theme_classic() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Shed Stage", y = "Plasma Osmolarity (mmol/kg)")
+```
+
+##Osmolarity vs. Cloacal Temp
+```{r}
+ggplot(data = mother_data_all_final_8, aes(x = calibrated_cloacal_temp, y = Plasma_Osmol_Rep_mean, colour = Hydration_Trmt)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Cloacal Temp at Time of Sample Collection", y = "Plasma Osmolarity (mmol/kg)")
+```
+
+##Osmolarity vs. Sample Collect Date
+```{r}
+ggplot(data = mother_data_all_final_8, aes(x = CEWL_Blood_Collect_Date, y = Plasma_Osmol_Rep_mean, colour = Hydration_Trmt)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Sample Collection Date", y = "Plasma Osmolarity (mmol/kg)")
+```
+
+##Osmolarity vs. Rookery Capture ID
+This only includes the measurements for the day after capture. 
+```{r}
+filter(mother_data_all_final_8, Preg_Stage == "DAC") %>%
+  ggplot(aes(x = Rookery_Capture_ID, y = Plasma_Osmol_Rep_mean)) +
+  geom_boxplot() +
+  theme_classic() +
+  labs(x = "Rookery Capture Location", y = "Plasma Osmolarity (mmol/kg)")
+```
+
+##Osmolarity vs. Hydration Treatment
+This includes the initial measurements before the treatments began and after.
+```{r}
+  ggplot(data = mother_data_all_final_8, aes(x = Hydration_Trmt, y = Plasma_Osmol_Rep_mean)) +
+  geom_boxplot() +
+  theme_classic() +
+  labs(x = "Hydration Treatment", y = "Plasma Osmolarity (mmol/kg)")
+```
+
+This does not include the initial measurements so is only the measurements after the hydration treatment began
+```{r}
+filter(mother_data_all_final_8, Preg_Stage != "DAC") %>%
+  ggplot(aes(x = Hydration_Trmt, y = Plasma_Osmol_Rep_mean)) +
+  geom_boxplot() +
+  theme_classic() +
+  labs(x = "Hydration Treatment", y = "Plasma Osmolarity (mmol/kg) After Treatment began")
+```
+
+##Osmolarity vs. CEWL
+```{r}
+  ggplot(data = mother_data_all_final_8, aes(x = CEWL_g_m2h, y = Plasma_Osmol_Rep_mean, colour = Hydration_Trmt)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "CEWL", y = "Plasma Osmolarity (mmol/kg)")
+```
+
+##Osmolarity vs. Ambient Temp
+```{r}
+  ggplot(data = mother_data_all_final_8, aes(x = msmt_temp_C, y = Plasma_Osmol_Rep_mean, colour = Hydration_Trmt)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Ambient Temp (C)", y = "Plasma Osmolarity (mmol/kg)")
+```
+##Osmolarity vs. Day Relative to the Day of Birth
+```{r}
+mother_data_all_final_8 %>%
+  filter(Gave_Birth == "Y") %>%
+  ggplot(aes(x = Day_Relative, y = Plasma_Osmol_Rep_mean, colour = Hydration_Trmt)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Day Relative to the Day of Birth", y = "Plasma Osmolarity (mmol/kg)")
+```
+```{r}
+ggplot() +
+  geom_line(data = mother_data_all_final_8,
+            aes(x = Day_Relative,
+                y = Plasma_Osmol_Rep_mean,
+                color = Hydration_Trmt,
+                group = Indiv_ID),
+            alpha = 0.2) +
+  geom_line(data = osmol_means_by_tmt_dayrelative,
+            aes(x = Day_Relative,
+                y = mean,
+                color = Hydration_Trmt,
+                group = Hydration_Trmt),
+            size = 1) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  theme_classic() +
+  labs(title = "Plasma Osmolarity Relative to Day of Parturiton",
+       subtitle = "Parturiton = Day 0",
+       x = "Day",
+       y = "Osmolarity",
+       color = "Treatment") +
+  scale_color_discrete(name = "Treatment", labels = c("Control", "Hydration"))
+```
+##Osmolarity vs. Days in Treatment
+###All Snakes
+```{r}
+ggplot() +
+  geom_line(data = mother_data_all_final_8,
+            aes(x = Days_in_Treatment,
+                y = Change_in_osmol,
+                color = Hydration_Trmt,
+                group = Indiv_ID),
+            alpha = 1) +
+  labs(title = "Change in Plasma Osmolarity Relative to Number of Days in Tmt",
+       x = "Days in Treatment",
+       y = "Change in Osmolarity",
+       color = "Treatment") +
+  scale_color_discrete(name = "Treatment", labels = c("Control", "Hydration"))
+```
+###Birth Snakes
+```{r}
+  mother_data_all_final_8 %>%
+  filter(Gave_Birth == "Y") %>%
+  ggplot(aes(x = Days_in_Treatment, y = Plasma_Osmol_Rep_mean, colour = Hydration_Trmt)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Number of Days in Treatment", y = "Plasma Osmolarity (mmol/kg)")
+```
+###No Birth Snakes
+```{r}
+  mother_data_all_final_8 %>%
+  filter(Gave_Birth == "N") %>%
+  ggplot(aes(x = Days_in_Treatment, y = Plasma_Osmol_Rep_mean, colour = Hydration_Trmt)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Number of Days in Treatment", y = "Plasma Osmolarity (mmol/kg)")
+```
+###Birth Snakes
+```{r}
+mother_data_all_final_8 %>%
+  filter(Gave_Birth == "Y") %>%
+  ggplot() +
+  geom_line(data = ,
+            aes(x = Days_in_Treatment,
+                y = Change_in_osmol,
+                color = Hydration_Trmt,
+                group = Indiv_ID),
+            alpha = 1) +
+  labs(title = "Change in Plasma Osmolarity Relative to Number of Days in Tmt",
+       x = "Days in Treatment",
+       y = "Change in Osmolarity",
+       color = "Treatment") +
+  scale_color_discrete(name = "Treatment", labels = c("Control", "Hydration"))
+```
+###No Birth Snakes
+```{r}
+mother_data_all_final_8 %>%
+  filter(Gave_Birth == "N") %>%
+  ggplot() +
+  geom_line(data = ,
+            aes(x = Days_in_Treatment,
+                y = Change_in_osmol,
+                color = Hydration_Trmt,
+                group = Indiv_ID),
+            alpha = 1) +
+  labs(title = "Change in Plasma Osmolarity Relative to Number of Days in Tmt",
+       x = "Days in Treatment",
+       y = "Change in Osmolarity",
+       color = "Treatment") +
+  scale_color_discrete(name = "Treatment", labels = c("Control", "Hydration"))
+```
+
+##Osmolarity vs. Days in Treatment
+```{r}
+  ggplot(data = mother_data_all_final_8, aes(x = Days_in_Treatment, y = Plasma_Osmol_Rep_mean, colour = Hydration_Trmt)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Number of Days in Treatment", y = "Plasma Osmolarity (mmol/kg)")
+```
+##Osmolarity vs. Body Condition
+```{r}
+  ggplot(data = mother_data_all_final_8, aes(x = Body_Condition, y = Plasma_Osmol_Rep_mean)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Body Condition", y = "Plasma Osmolarity (mmol/kg)")
+```
+##Change in Osmol
+```{r}
+ggplot() +
+  geom_line(data = mother_data_all_final_8,
+            aes(x = Days_in_Treatment,
+                y = Change_in_osmol,
+                color = Hydration_Trmt,
+                group = Indiv_ID),
+            alpha = 1) +
+  labs(title = "Change in Plasma Osmolarity Relative to Number of Days in Tmt",
+       x = "Days in Treatment",
+       y = "Change in Osmolarity",
+       color = "Treatment") +
+  scale_color_discrete(name = "Treatment", labels = c("Control", "Hydration"))
+```
+##Individual Figures for Osmolarity Day Relative.
+```{r}
+#101
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "101", ],
+            aes(x = Day_Relative,
+                y = Plasma_Osmol_Rep_mean), color = "cyan3") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "101", ],
+             aes(x = Day_Relative,
+                 y = Plasma_Osmol_Rep_mean), color = "cyan3") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  geom_vline(xintercept = -11.5, linetype = "dotted", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -12, to = 0, by = 1)) +
+  labs(title = "Plasma Osmolarity Relative to Day of Parturiton (Indiv. 101; Hydration)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "Osmolarity")
+```
+
+```{r}
+#103
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "103", ],
+            aes(x = Day_Relative,
+                y = Plasma_Osmol_Rep_mean), color = "coral2") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "103", ],
+             aes(x = Day_Relative,
+                 y = Plasma_Osmol_Rep_mean), color = "coral2") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -14, to = 0, by = 1)) +
+  labs(title = "Plasma Osmolarity Relative to Day of Parturiton (Indiv. 103; Control)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "Osmolarity")
+```
+
+```{r}
+#104
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "104", ],
+            aes(x = Day_Relative,
+                y = Plasma_Osmol_Rep_mean), color = "cyan3") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "104", ],
+             aes(x = Day_Relative,
+                 y = Plasma_Osmol_Rep_mean), color = "cyan3") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  geom_vline(xintercept = -13.5, linetype = "dotted", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -14, to = 0, by = 1)) +
+  labs(title = "Plasma Osmolarity Relative to Day of Parturiton (Indiv. 104; Hydration)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "Osmolarity")
+```
+
+```{r}
+#105
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "105", ],
+            aes(x = Day_Relative,
+                y = Plasma_Osmol_Rep_mean), color = "coral2") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "105", ],
+             aes(x = Day_Relative,
+                 y = Plasma_Osmol_Rep_mean), color = "coral2") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -14, to = 0, by = 1)) +
+  labs(title = "Plasma Osmolarity Relative to Day of Parturiton (Indiv. 105; Control)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "Osmolarity")
+```
+
+```{r}
+#112
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "112", ],
+            aes(x = Day_Relative,
+                y = Plasma_Osmol_Rep_mean), color = "cyan3") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "112", ],
+             aes(x = Day_Relative,
+                 y = Plasma_Osmol_Rep_mean), color = "cyan3") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  geom_vline(xintercept = -12.5, linetype = "dotted", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -13, to = 0, by = 1)) +
+  labs(title = "Plasma Osmolarity Relative to Day of Parturiton (Indiv. 112; Hydration)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "Osmolarity")
+```
+
+```{r}
+#114
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "114", ],
+            aes(x = Day_Relative,
+                y = Plasma_Osmol_Rep_mean), color = "coral2") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "114", ],
+             aes(x = Day_Relative,
+                 y = Plasma_Osmol_Rep_mean), color = "coral2") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -13, to = 0, by = 1)) +
+  labs(title = "Plasma Osmolarity Relative to Day of Parturiton (Indiv. 114; Control)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "Osmolarity")
+```
+
+```{r}
+#115
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "115", ],
+            aes(x = Day_Relative,
+                y = Plasma_Osmol_Rep_mean), color = "coral2") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "115", ],
+             aes(x = Day_Relative,
+                 y = Plasma_Osmol_Rep_mean), color = "coral2") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -14, to = 0, by = 1)) +
+  labs(title = "Plasma Osmolarity Relative to Day of Parturiton (Indiv. 115; Control)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "Osmolarity")
+```
+
+```{r}
+#119
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "119", ],
+            aes(x = Day_Relative,
+                y = Plasma_Osmol_Rep_mean), color = "cyan3") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "119", ],
+             aes(x = Day_Relative,
+                 y = Plasma_Osmol_Rep_mean), color = "cyan3") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  geom_vline(xintercept = -11.5, linetype = "dotted", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -12, to = 0, by = 1)) +
+  labs(title = "Plasma Osmolarity Relative to Day of Parturiton (Indiv. 119; Hydration)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "Osmolarity")
+```
+
+```{r}
+#124
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "124", ],
+            aes(x = Day_Relative,
+                y = Plasma_Osmol_Rep_mean), color = "cyan3") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "124", ],
+             aes(x = Day_Relative,
+                 y = Plasma_Osmol_Rep_mean), color = "cyan3") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  geom_vline(xintercept = -3.5, linetype = "dotted", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -15, to = 0, by = 1)) +
+  labs(title = "Plasma Osmolarity Relative to Day of Parturiton (Indiv. 124; Hydration)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "Osmolarity")
+```
+
+```{r}
+#125
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "125", ],
+            aes(x = Day_Relative,
+                y = Plasma_Osmol_Rep_mean), color = "coral2") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "125", ],
+             aes(x = Day_Relative,
+                 y = Plasma_Osmol_Rep_mean), color = "coral2") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -3, to = 10, by = 1)) +
+  labs(title = "Plasma Osmolarity Relative to Day of Parturiton (Indiv. 125; Control)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "Osmolarity")
+```
+
+```{r}
+#126
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "126", ],
+            aes(x = Day_Relative,
+                y = Plasma_Osmol_Rep_mean), color = "cyan3") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "126", ],
+             aes(x = Day_Relative,
+                 y = Plasma_Osmol_Rep_mean), color = "cyan3") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  geom_vline(xintercept = -5.5, linetype = "dotted", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -16, to = 1, by = 1)) +
+  labs(title = "Plasma Osmolarity Relative to Day of Parturiton (Indiv. 126; Hydration)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "Osmolarity")
+```
+
+```{r}
+#127
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "127", ],
+            aes(x = Day_Relative,
+                y = Plasma_Osmol_Rep_mean), color = "cyan3") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "127", ],
+             aes(x = Day_Relative,
+                 y = Plasma_Osmol_Rep_mean), color = "cyan3") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  geom_vline(xintercept = -7.5, linetype = "dotted", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -8, to = 1, by = 1)) +
+  labs(title = "Plasma Osmolarity Relative to Day of Parturiton (Indiv. 127; Hydration)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "Osmolarity")
+```
+
+```{r}
+#128
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "128", ],
+            aes(x = Day_Relative,
+                y = Plasma_Osmol_Rep_mean), color = "cyan3") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "128", ],
+             aes(x = Day_Relative,
+                 y = Plasma_Osmol_Rep_mean), color = "cyan3") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  geom_vline(xintercept = -1.5, linetype = "dotted", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -2, to = 8, by = 1)) +
+  labs(title = "Plasma Osmolarity Relative to Day of Parturiton (Indiv. 128; Hydration)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "Osmolarity")
+```
+
+```{r}
+#129
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "129", ],
+            aes(x = Day_Relative,
+                y = Plasma_Osmol_Rep_mean), color = "coral2") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "129", ],
+             aes(x = Day_Relative,
+                 y = Plasma_Osmol_Rep_mean), color = "coral2") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -2, to = 7, by = 1)) +
+  labs(title = "Plasma Osmolarity Relative to Day of Parturiton (Indiv. 129; Control)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "Osmolarity")
+```
+
+```{r}
+#131
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "131", ],
+            aes(x = Day_Relative,
+                y = Plasma_Osmol_Rep_mean), color = "cyan3") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "131", ],
+             aes(x = Day_Relative,
+                 y = Plasma_Osmol_Rep_mean), color = "cyan3") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  geom_vline(xintercept = -3.5, linetype = "dotted", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -4, to = 1, by = 1)) +
+  labs(title = "Plasma Osmolarity Relative to Day of Parturiton (Indiv. 131; Hydration)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "Osmolarity")
+```
+
+```{r}
+#133
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "133", ],
+            aes(x = Day_Relative,
+                y = Plasma_Osmol_Rep_mean), color = "coral2") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "133", ],
+             aes(x = Day_Relative,
+                 y = Plasma_Osmol_Rep_mean), color = "coral2") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -4, to = 1, by = 1)) +
+  labs(title = "Plasma Osmolarity Relative to Day of Parturiton (Indiv. 133; Control)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "Osmolarity")
+```
+
+```{r}
+#134
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "134", ],
+            aes(x = Day_Relative,
+                y = Plasma_Osmol_Rep_mean), color = "cyan3") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "134", ],
+             aes(x = Day_Relative,
+                 y = Plasma_Osmol_Rep_mean), color = "cyan3") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  geom_vline(xintercept = -3.5, linetype = "dotted", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -4, to = 1, by = 1)) +
+  labs(title = "Plasma Osmolarity Relative to Day of Parturiton (Indiv. 134; Hydration)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "Osmolarity")
+```
+
+```{r}
+#135
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "135", ],
+            aes(x = Day_Relative,
+                y = Plasma_Osmol_Rep_mean), color = "coral2") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "135", ],
+             aes(x = Day_Relative,
+                 y = Plasma_Osmol_Rep_mean), color = "coral2") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -1, to = 8, by = 1)) +
+  labs(title = "Plasma Osmolarity Relative to Day of Parturiton (Indiv. 135; Control)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "Osmolarity")
+```
+
+#Plotting CEWL Raw Data
+
+##CEWL vs. SVL
+```{r}
+  ggplot(data = mother_data_all_final_8, aes(x = SVL_cm, y = CEWL_g_m2h, colour = Hydration_Trmt)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "SVL (cm)", y = "CEWL (g/m2h)")
+```
+##CEWL vs. Mass
+```{r}
+  ggplot(data = mother_data_all_final_8, aes(x = Mass_g, y = CEWL_g_m2h, colour = Hydration_Trmt)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Mass (g)", y = "CEWL (g/m2h)")
+```
+##CEWL vs. Shed Stage
+```{r}
+  ggplot(data = mother_data_all_final_8, aes(x = Shed_Stage, y = CEWL_g_m2h, colour = Hydration_Trmt)) +
+  geom_point() +
+  geom_boxplot() +
+  theme_classic() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Shed Stage", y = "CEWL (g/m2h)")
+```
+##CEWL vs. Clocal Temp
+```{r}
+  ggplot(data = mother_data_all_final_8, aes(x = calibrated_cloacal_temp, y = CEWL_g_m2h, colour = Hydration_Trmt)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Body Temp (C)", y = "CEWL (g/m2h)")
+```
+##CEWL vs. Sample Collect Date
+```{r}
+ggplot(data = mother_data_all_final_8, aes(x = CEWL_Blood_Collect_Date, y = CEWL_g_m2h, colour = Hydration_Trmt)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Sample Collection Date", y = "CEWL")
+```
+##CEWL vs. Rookery Capture ID
+This only includes the measurements for the day after capture. 
+```{r}
+filter(mother_data_all_final_8, Preg_Stage == "DAC") %>%
+  ggplot(aes(x = Rookery_Capture_ID, y = CEWL_g_m2h)) +
+  geom_boxplot() +
+  theme_classic() +
+  labs(x = "Rookery Capture Location", y = "CEWL")
+```
+##CEWL vs. Hydration Treatment
+This includes the initial measurements before the treatments began and after.
+```{r}
+  ggplot(data = mother_data_all_final_8, aes(x = Hydration_Trmt, y = CEWL_g_m2h, fill = Hydration_Trmt)) +
+  geom_boxplot() +
+  theme_classic() +
+  labs(x = "Hydration Treatment", y = "CEWL")
+```
+This does not include the initial measurements so is only the measurements after the hydration treatment began
+```{r}
+filter(mother_data_all_final_8, Preg_Stage != "DAC") %>%
+  ggplot(aes(x = Hydration_Trmt, y = CEWL_g_m2h)) +
+  geom_boxplot() +
+  theme_classic() +
+  labs(x = "Hydration Treatment", y = "CEWL After Treatment began")
+```
+##CEWL vs Osmolarity
+```{r}
+  ggplot(data = mother_data_all_final_8, aes(x = Plasma_Osmol_Rep_mean, y = CEWL_g_m2h, colour = Hydration_Trmt)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Plasma Osmolarity (mmol/kg)", y = "CEWL")
+```
+##CEWL vs. Ambient Temp
+```{r}
+  ggplot(data = mother_data_all_final_8, aes(x = msmt_temp_C, y = CEWL_g_m2h)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Ambient Temp (C)", y = "CEWL")
+```
+##CEWL vs. Ambient Humidity
+```{r}
+  ggplot(data = mother_data_all_final_8, aes(x = msmt_RH_percent, y = CEWL_g_m2h)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Ambient Humidity", y = "CEWL")
+```
+##CEWL vs. Day Relative to the Day of Birth
+```{r}
+mother_data_all_final_8 %>%
+  filter(Gave_Birth == "Y") %>%
+  ggplot(aes(x = Day_Relative, y = CEWL_g_m2h)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Day Relative to the Day of Birth", y = "CEWL")
+```
+##CEWL vs. Days in Treatment
+```{r}
+  ggplot(data = mother_data_all_final_8, aes(x = Days_in_Treatment, y = CEWL_g_m2h, colour = Hydration_Trmt)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Number of Days in Treatment", y = "CEWL")
+```
+##CEWL vs. Body Condition
+```{r}
+  ggplot(data = mother_data_all_final_8, aes(x = Body_Condition, y = CEWL_g_m2h)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Body Condition", y = "CEWL")
+```
+##Change in CEWL
+```{r}
+ggplot() +
+  geom_line(data = mother_data_all_final_6,
+            aes(x = Days_in_Treatment,
+                y = Change_in_CEWL,
+                color = Hydration_Trmt,
+                group = Indiv_ID),
+            alpha = 1) +
+  labs(title = "Change in CEWL Relative to Number of Days in Treatment",
+       x = "Days in Treatment",
+       y = "Change in CEWL",
+       color = "Treatment") +
+  scale_color_discrete(name = "Treatment", labels = c("Control", "Hydration"))
+```
+##Individual Figures for CEWL
+```{r}
+#101
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "101", ],
+            aes(x = Day_Relative,
+                y = CEWL_g_m2h), color = "cyan3") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "101", ],
+             aes(x = Day_Relative,
+                 y = CEWL_g_m2h), color = "cyan3") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  geom_vline(xintercept = -11.5, linetype = "dotted", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -12, to = 0, by = 1)) +
+  labs(title = "CEWL Relative to Day of Parturiton (Indiv. 101; Hydration)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "CEWL")
+```
+
+```{r}
+#103
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "103", ],
+            aes(x = Day_Relative,
+                y = CEWL_g_m2h), color = "coral2") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "103", ],
+             aes(x = Day_Relative,
+                 y = CEWL_g_m2h), color = "coral2") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -14, to = 0, by = 1)) +
+  labs(title = "CEWL Relative to Day of Parturiton (Indiv. 103; Control)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "CEWL")
+```
+
+```{r}
+#104
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "104", ],
+            aes(x = Day_Relative,
+                y = CEWL_g_m2h), color = "cyan3") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "104", ],
+             aes(x = Day_Relative,
+                 y = CEWL_g_m2h), color = "cyan3") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  geom_vline(xintercept = -13.5, linetype = "dotted", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -14, to = 0, by = 1)) +
+  labs(title = "CEWL Relative to Day of Parturiton (Indiv. 104; Hydration)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "CEWL")
+```
+
+```{r}
+#105
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "105", ],
+            aes(x = Day_Relative,
+                y = CEWL_g_m2h), color = "coral2") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "105", ],
+             aes(x = Day_Relative,
+                 y = CEWL_g_m2h), color = "coral2") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -14, to = 0, by = 1)) +
+  labs(title = "CEWL Relative to Day of Parturiton (Indiv. 105; Control)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "CEWL")
+```
+
+```{r}
+#112
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "112", ],
+            aes(x = Day_Relative,
+                y = CEWL_g_m2h), color = "cyan3") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "112", ],
+             aes(x = Day_Relative,
+                 y = CEWL_g_m2h), color = "cyan3") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  geom_vline(xintercept = -12.5, linetype = "dotted", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -13, to = 0, by = 1)) +
+  labs(title = "CEWL Relative to Day of Parturiton (Indiv. 112; Hydration)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "CEWL")
+```
+
+```{r}
+#114
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "114", ],
+            aes(x = Day_Relative,
+                y = CEWL_g_m2h), color = "coral2") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "114", ],
+             aes(x = Day_Relative,
+                 y = CEWL_g_m2h), color = "coral2") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -13, to = 0, by = 1)) +
+  labs(title = "CEWL Relative to Day of Parturiton (Indiv. 114; Control)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "CEWL")
+```
+
+```{r}
+#115
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "115", ],
+            aes(x = Day_Relative,
+                y = CEWL_g_m2h), color = "coral2") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "115", ],
+             aes(x = Day_Relative,
+                 y = CEWL_g_m2h), color = "coral2") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -14, to = 0, by = 1)) +
+  labs(title = "CEWL Relative to Day of Parturiton (Indiv. 115; Control)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "CEWL")
+```
+
+```{r}
+#119
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "119", ],
+            aes(x = Day_Relative,
+                y = CEWL_g_m2h), color = "cyan3") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "119", ],
+             aes(x = Day_Relative,
+                 y = CEWL_g_m2h), color = "cyan3") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  geom_vline(xintercept = -11.5, linetype = "dotted", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -12, to = 0, by = 1)) +
+  labs(title = "CEWL Relative to Day of Parturiton (Indiv. 119; Hydration)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "CEWL")
+```
+
+```{r}
+#124
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "124", ],
+            aes(x = Day_Relative,
+                y = CEWL_g_m2h), color = "cyan3") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "124", ],
+             aes(x = Day_Relative,
+                 y = CEWL_g_m2h), color = "cyan3") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  geom_vline(xintercept = -3.5, linetype = "dotted", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -15, to = 0, by = 1)) +
+  labs(title = "CEWL Relative to Day of Parturiton (Indiv. 124; Hydration)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "CEWL")
+```
+
+```{r}
+#125
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "125", ],
+            aes(x = Day_Relative,
+                y = CEWL_g_m2h), color = "coral2") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "125", ],
+             aes(x = Day_Relative,
+                 y = CEWL_g_m2h), color = "coral2") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -3, to = 10, by = 1)) +
+  labs(title = "CEWL Relative to Day of Parturiton (Indiv. 125; Control)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "CEWL")
+```
+
+```{r}
+#126
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "126", ],
+            aes(x = Day_Relative,
+                y = CEWL_g_m2h), color = "cyan3") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "126", ],
+             aes(x = Day_Relative,
+                 y = CEWL_g_m2h), color = "cyan3") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  geom_vline(xintercept = -5.5, linetype = "dotted", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -16, to = 1, by = 1)) +
+  labs(title = "CEWL Relative to Day of Parturiton (Indiv. 126; Hydration)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "CEWL")
+```
+
+```{r}
+#127
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "127", ],
+            aes(x = Day_Relative,
+                y = CEWL_g_m2h), color = "cyan3") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "127", ],
+             aes(x = Day_Relative,
+                 y = CEWL_g_m2h), color = "cyan3") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  geom_vline(xintercept = -7.5, linetype = "dotted", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -8, to = 1, by = 1)) +
+  labs(title = "CEWL Relative to Day of Parturiton (Indiv. 127; Hydration)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "CEWL")
+```
+
+```{r}
+#128
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "128", ],
+            aes(x = Day_Relative,
+                y = CEWL_g_m2h), color = "cyan3") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "128", ],
+             aes(x = Day_Relative,
+                 y = CEWL_g_m2h), color = "cyan3") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  geom_vline(xintercept = -1.5, linetype = "dotted", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -2, to = 8, by = 1)) +
+  labs(title = "CEWL Relative to Day of Parturiton (Indiv. 128; Hydration)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "CEWL")
+```
+
+```{r}
+#129
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "129", ],
+            aes(x = Day_Relative,
+                y = CEWL_g_m2h), color = "coral2") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "129", ],
+             aes(x = Day_Relative,
+                 y = CEWL_g_m2h), color = "coral2") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -2, to = 7, by = 1)) +
+  labs(title = "CEWL Relative to Day of Parturiton (Indiv. 129; Control)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "CEWL")
+```
+
+```{r}
+#131
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "131", ],
+            aes(x = Day_Relative,
+                y = CEWL_g_m2h), color = "cyan3") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "131", ],
+             aes(x = Day_Relative,
+                 y = CEWL_g_m2h), color = "cyan3") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  geom_vline(xintercept = -3.5, linetype = "dotted", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -4, to = 1, by = 1)) +
+  labs(title = "CEWL Relative to Day of Parturiton (Indiv. 131; Hydration)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "CEWL")
+```
+
+```{r}
+#133
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "133", ],
+            aes(x = Day_Relative,
+                y = CEWL_g_m2h), color = "coral2") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "133", ],
+             aes(x = Day_Relative,
+                 y = CEWL_g_m2h), color = "coral2") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -4, to = 1, by = 1)) +
+  labs(title = "CEWL Relative to Day of Parturiton (Indiv. 133; Control)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "CEWL")
+```
+
+```{r}
+#134
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "134", ],
+            aes(x = Day_Relative,
+                y = CEWL_g_m2h), color = "cyan3") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "134", ],
+             aes(x = Day_Relative,
+                 y = CEWL_g_m2h), color = "cyan3") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  geom_vline(xintercept = -3.5, linetype = "dotted", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -4, to = 1, by = 1)) +
+  labs(title = "CEWL Relative to Day of Parturiton (Indiv. 134; Hydration)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "CEWL")
+```
+
+```{r}
+#135
+ggplot() +
+  geom_line(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "135", ],
+            aes(x = Day_Relative,
+                y = CEWL_g_m2h), color = "coral2") +
+  geom_point(data = mother_data_all_final_3[mother_data_all_final_3$Indiv_ID == "135", ],
+             aes(x = Day_Relative,
+                 y = CEWL_g_m2h), color = "coral2") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
+  theme_classic() +
+  scale_x_continuous(breaks = seq(from = -1, to = 8, by = 1)) +
+  labs(title = "CEWL Relative to Day of Parturiton (Indiv. 135; Control)",
+       subtitle = "Day of Parturiton = Day 0",
+       x = "Day",
+       y = "CEWL")
+```
+
+
+#Correlation Plot
+Making a correlation plot to see which numerical variables are related to one another in this data set.
+
+First, selecting out all of the numerical variables since correlation plots are based on numerical variables only.
+```{r}
+summary(mother_data_all_final_8)
+
+correl_df <- mother_data_all_final_8 %>%
+  mutate(Indiv_ID = as.numeric(Indiv_ID)) %>%
+  ungroup() %>%
+  dplyr::select(Plasma_Osmol_Rep_mean, SVL_cm, Mass_g, calibrated_cloacal_temp, CEWL_g_m2h, msmt_temp_C, msmt_RH_percent, Body_Condition, Day_Relative, Days_in_Treatment, Change_in_osmol, Change_in_CEWL)
+```
+
+Making the correlation chart
+```{r}
+chart.Correlation(correl_df, histogram=TRUE, pch=19)
+```
+
+#CEWL Models
+
+##Categorical Variable Relationships
+First, I have to find which categorical variables are related to CEWL.
+```{r}
+summary(mother_data_all_final_8)
+
+#Shed stage 
+summary(lm(CEWL_g_m2h ~ Shed_Stage, data = mother_data_all_final_8))
+#not correlated, no need to include in model
+
+#Preg_Stage
+TukeyHSD(aov(CEWL_g_m2h ~ Preg_Stage, data = mother_data_all_final_8))
+#Some differences, but this variable isnt biologically relavent. I really don't need it anyore. Doesn't accurately represent preg stage.
+
+#Sample collect dater
+TukeyHSD(aov(CEWL_g_m2h ~ as.factor(CEWL_Blood_Collect_Date), mother_data_all_final_8))
+#Some difference. I'll include it but I think it is going to cause issues. 
+
+#Rookery capture ID
+TukeyHSD(aov(CEWL_g_m2h ~ Rookery_Capture_ID, data = mother_data_all_final_8))
+#No differences, no need to include in the model
+
+#Hydration treatment
+summary(lm(CEWL_g_m2h ~ Hydration_Trmt, data = mother_data_all_final_8))
+TukeyHSD(aov(CEWL_g_m2h ~ Hydration_Trmt, data = mother_data_all_final_8))
+#Initial lm, no difference between hydration groups but I will still keep it in the model because this is what we are primarily interested in. Likely differences with interactions. 
+
+#Date of parturition
+TukeyHSD(aov(CEWL_g_m2h ~ as.factor(Date_Parturition), mother_data_all_final_8))
+#No differences between the dates of parturition, wont include in model.
+
+#If they gave birth or not
+summary(lm(CEWL_g_m2h ~ Gave_Birth, data = mother_data_all_final_8))
+#no difference, wont include in the model
+```
+Overall, the categorial variables that I will include in the model are collect date and hydration treatment.
+
+##Numerical Variable Relationships
+
+Based on the correlation plot, the numerical variables that I initially want to include in the full model for CEWL are calibrated body temp, ambient temp, ambient humidity, day relative to birth, and days in treatment
+
+Overall, all of the variables that I will include in the initial model are calibrated body temp, ambient temp, ambient humidity, day relative to birth, days in treatment, hydration treatment, and sample collect date. I will also include the interactions that I think may be relevant. 
+
+Since day relative is important, I will also have to make two separate models for the snakes that gave birth and the snakes that didn't. If, in the end, the best model for the snakes that did give birth doesn't include the day relative, then I can put all snakes in the same model. If not, separate. 
+
+First, making a dataframe with the snakes that did give birth. 
+```{r}
+birth_snakes <- mother_data_all_final_8 %>%
+  filter(Gave_Birth == "Y")
+
+birth_snakes <- birth_snakes[-c(24,25,26), ]
+```
+
+Now, a dataframe with the snakes that did not give birth
+```{r}
+no_birth_snakes <- mother_data_all_final_8 %>%
+  filter(Gave_Birth == "N")
+```
+
+##Baseline Model
+First, I need a dataframe with only the baseline measurements. 
+```{r}
+mothers_baseline <- mother_data_all_final_8 %>%
+  filter(Preg_Stage == "DAC")
+```
+
+Now creating an initial model with all variables that may impact baseline CEWL so mass, SVL, body condition, body temperature at the time of measurement, ambient temperature, and ambient humidity, treatment. Also seeing if capture date and indiv ID are a random effect.
+
+```{r}
+baseline_cewl_1 <- lme4::lmer(data = mothers_baseline,
+                      CEWL_g_m2h ~
+                        calibrated_cloacal_temp +
+                        msmt_temp_C +
+                        msmt_RH_percent +
+                        Mass_g +
+                        SVL_cm +
+                        Body_Condition +
+                        (1|CEWL_Blood_Collect_Date))
+                    
+car::vif(baseline_cewl_1)
+summary(baseline_cewl_1)
+drop1(baseline_cewl_1)
+anova(baseline_cewl_1)
+```
+due to multicolinearity, I will first remove mass and svl and keep body condition. 
+```{r}
+baseline_cewl_2 <- lme4::lmer(data = mothers_baseline,
+                      CEWL_g_m2h ~
+                        calibrated_cloacal_temp +
+                        msmt_temp_C +
+                        msmt_RH_percent +
+                        Body_Condition +
+                        (1|CEWL_Blood_Collect_Date))
+                    
+
+summary(baseline_cewl_2)
+drop1(baseline_cewl_2)
+anova(baseline_cewl_2)
+```
+Next, drop body condition. 
+```{r}
+baseline_cewl_3 <- lme4::lmer(data = mothers_baseline,
+                      CEWL_g_m2h ~
+                        calibrated_cloacal_temp +
+                        msmt_temp_C +
+                        msmt_RH_percent +
+                        (1|CEWL_Blood_Collect_Date))
+                    
+
+summary(baseline_cewl_3)
+drop1(baseline_cewl_3)
+anova(baseline_cewl_3)
+```
+next drop cloacal temp
+```{r}
+baseline_cewl_4 <- lme4::lmer(data = mothers_baseline,
+                      CEWL_g_m2h ~
+                        msmt_temp_C +
+                        msmt_RH_percent +
+                        (1|CEWL_Blood_Collect_Date))
+                    
+
+summary(baseline_cewl_4)
+drop1(baseline_cewl_4)
+anova(baseline_cewl_4)
+```
+next drop ambient temp
+```{r}
+baseline_cewl_5 <- lme4::lmer(data = mothers_baseline,
+                      CEWL_g_m2h ~
+                        msmt_RH_percent +
+                        (1|CEWL_Blood_Collect_Date))
+                    
+
+summary(baseline_cewl_5)
+drop1(baseline_cewl_5)
+anova(baseline_cewl_5)
+```
+null model
+```{r}
+baseline_cewl_null <- lme4::lmer(data = mothers_baseline,
+                      CEWL_g_m2h ~
+                        (1|CEWL_Blood_Collect_Date))
+                    
+
+summary(baseline_cewl_null)
+drop1(baseline_cewl_null)
+anova(baseline_cewl_null)
+```
+
+###Model selection
+```{r CEWL mod compare}
+baseline_cewl_mods <- list(baseline_cewl_2, baseline_cewl_3, baseline_cewl_4, baseline_cewl_5, baseline_cewl_null)
+
+#specify model names
+baeline_cewl_mod_names_all <- c('model2', 
+                    'model3',
+                    'model4',
+                    'model6',
+                    'modelnull')
+
+#calculate AIC of each model
+cewl_AICc_all <- data.frame(aictab(cand.set = baseline_cewl_mods, 
+                                 modnames = baeline_cewl_mod_names_all))
+cewl_AICc_all
+```
+Best model was 4 which included:
+```{r}
+baseline_final_mod <- lmerTest::lmer(data = mothers_baseline,
+                      CEWL_g_m2h ~
+                        msmt_temp_C +
+                        msmt_RH_percent +
+                        (1|CEWL_Blood_Collect_Date))
+
+summary(baseline_final_mod)
+anova(baseline_final_mod)
+```
+Result: Baseline CEWL was best explained by ambient conditions including humidity (lmm: estimate = 1.05, SE = 0.33, F(1, 24.07) = 10.34, p = 0.0037) and temperature (lmm: estimate = 4.39, SE = 1.1, F(1, 24.2) = 15.86, p = 0.00054)
+
+##Initial Models (Experimental)
+Is there a difference in cewl between the treatment group and the control group the day after capture? 
+```{r}
+DAC_cewl <- mother_data_all_final_8 %>%
+  dplyr::filter(Preg_Stage == "DAC")
+
+DAC_cewl_lm <- lm(CEWL_g_m2h ~ Hydration_Trmt, data = DAC_cewl)
+
+summary(DAC_cewl_lm)
+anova(DAC_cewl_lm)
+
+#Result: Baseline rates of CEWL did not differ between treatment groups (estimate = 1.68, SE = 1.60, F(1,27) = 1.10, p = 0.30).
+mother_data_all_final_8 %>%
+  dplyr::filter(Preg_Stage == "DAC") %>%
+  ggplot(aes(x = Hydration_Trmt, y = Plasma_Osmol_Rep_mean, fill = Hydration_Trmt)) +
+  geom_boxplot() +
+  theme_classic() +
+  labs(x = "Hydration Treatment", y = "Plasma Osmolarity")
+```
+Snakes that DID give birth
+```{r}
+BirthSnakes_CEWL_LMM_1 <- lme4::lmer(data = birth_snakes,
+                      CEWL_g_m2h ~
+                        Hydration_Trmt *
+                        (Day_Relative + Days_in_Treatment) +
+                        calibrated_cloacal_temp +
+                        msmt_temp_C +
+                        msmt_RH_percent +
+                        (1|Indiv_ID))
+
+summary(BirthSnakes_CEWL_LMM_1)
+#Lower t values are less significant
+drop1(BirthSnakes_CEWL_LMM_1)
+anova(BirthSnakes_CEWL_LMM_1)
+#Warning means random effects are small. 
+```
+Based on model, 1 the first variable to drop is the interaction between hydration treatment and the number of days in treatment. 
+```{r}
+BirthSnakes_CEWL_LMM_2 <- lme4::lmer(data = birth_snakes,
+                      CEWL_g_m2h ~
+                        Hydration_Trmt *
+                        Day_Relative +
+                        calibrated_cloacal_temp +
+                        msmt_temp_C +
+                        msmt_RH_percent +
+                        Days_in_Treatment +
+                        (1|Indiv_ID))
+
+summary(BirthSnakes_CEWL_LMM_2)
+#Lower t values are less significant
+drop1(BirthSnakes_CEWL_LMM_2)
+anova(BirthSnakes_CEWL_LMM_2)
+#Warning means random effects are small. 
+```
+Based on model 2, the next variable to drop is days in treatment. 
+```{r}
+BirthSnakes_CEWL_LMM_3 <- lme4::lmer(data = birth_snakes,
+                      CEWL_g_m2h ~
+                        Hydration_Trmt *
+                        Day_Relative +
+                        calibrated_cloacal_temp +
+                        msmt_temp_C +
+                        msmt_RH_percent +
+                        (1|Indiv_ID))
+
+summary(BirthSnakes_CEWL_LMM_3)
+#Lower t values are less significant
+drop1(BirthSnakes_CEWL_LMM_3)
+anova(BirthSnakes_CEWL_LMM_3)
+#Warning means random effects are small. 
+```
+Based on model 3, the next variable to drop is the interaction between hydration treatment and day relative. 
+```{r}
+BirthSnakes_CEWL_LMM_4 <- lme4::lmer(data = birth_snakes,
+                      CEWL_g_m2h ~
+                        Hydration_Trmt +
+                        Day_Relative +
+                        calibrated_cloacal_temp +
+                        msmt_temp_C +
+                        msmt_RH_percent +
+                        (1|Indiv_ID))
+
+summary(BirthSnakes_CEWL_LMM_4)
+#Lower t values are less significant
+drop1(BirthSnakes_CEWL_LMM_4)
+anova(BirthSnakes_CEWL_LMM_4)
+#Warning means random effects are small. 
+```
+Based on model 4, the next variable to drop is hydration treatment. 
+```{r}
+BirthSnakes_CEWL_LMM_5 <- lme4::lmer(data = birth_snakes,
+                      CEWL_g_m2h ~
+                        calibrated_cloacal_temp +
+                        msmt_temp_C +
+                        Day_Relative +
+                        msmt_RH_percent +
+                        (1|Indiv_ID))
+
+summary(BirthSnakes_CEWL_LMM_5)
+#Lower t values are less significant
+drop1(BirthSnakes_CEWL_LMM_5)
+anova(BirthSnakes_CEWL_LMM_5)
+#Warning means random effects are small. 
+```
+Next variable to drop is day relative 
+```{r}
+BirthSnakes_CEWL_LMM_6 <- lme4::lmer(data = birth_snakes,
+                      CEWL_g_m2h ~
+                        calibrated_cloacal_temp +
+                        msmt_temp_C +
+                        msmt_RH_percent +
+                        (1|Indiv_ID))
+
+summary(BirthSnakes_CEWL_LMM_6)
+#Lower t values are less significant
+drop1(BirthSnakes_CEWL_LMM_6)
+anova(BirthSnakes_CEWL_LMM_6)
+#Warning means random effects are small. 
+```
+next to drop is body temp
+```{r}
+BirthSnakes_CEWL_LMM_7 <- lme4::lmer(data = birth_snakes,
+                      CEWL_g_m2h ~
+                        msmt_temp_C +
+                        msmt_RH_percent +
+                        (1|Indiv_ID))
+
+summary(BirthSnakes_CEWL_LMM_7)
+#Lower t values are less significant
+drop1(BirthSnakes_CEWL_LMM_7)
+anova(BirthSnakes_CEWL_LMM_7)
+#Warning means random effects are small. 
+```
+Next to drop is ambient temp
+```{r}
+BirthSnakes_CEWL_LMM_8 <- lme4::lmer(data = birth_snakes,
+                      CEWL_g_m2h ~
+                        msmt_RH_percent +
+                        (1|Indiv_ID))
+
+summary(BirthSnakes_CEWL_LMM_8)
+#Lower t values are less significant
+drop1(BirthSnakes_CEWL_LMM_8)
+anova(BirthSnakes_CEWL_LMM_8)
+#Warning means random effects are small. 
+```
+null model 
+```{r}
+BirthSnakes_CEWL_LMM_null <- lme4::lmer(data = birth_snakes,
+                      CEWL_g_m2h ~ 1 + (1|Indiv_ID))
+
+summary(BirthSnakes_CEWL_LMM_null)
+#Lower t values are less significant
+drop1(BirthSnakes_CEWL_LMM_null)
+anova(BirthSnakes_CEWL_LMM_null)
+#Warning means random effects are small. 
+```
+Model Selection
+```{r CEWL mod compare}
+cewl_models <- list(BirthSnakes_CEWL_LMM_1, BirthSnakes_CEWL_LMM_2, BirthSnakes_CEWL_LMM_3, BirthSnakes_CEWL_LMM_4, BirthSnakes_CEWL_LMM_5, BirthSnakes_CEWL_LMM_6, BirthSnakes_CEWL_LMM_7, BirthSnakes_CEWL_LMM_8, BirthSnakes_CEWL_LMM_null)
+
+#specify model names
+cewl_mod_names <- c('model1', 
+                    'model2', 
+                    'model3',
+                    'model4',
+                    'model5',
+                    'model6',
+                    'model7',
+                    'model8',
+                    'modelnull')
+
+#calculate AIC of each model
+cewl_AICc <- data.frame(aictab(cand.set = cewl_models, 
+                                 modnames = cewl_mod_names))
+cewl_AICc
+```
+Since day relative to birth is not significant, I can include all snakes in one model together. 
+###All Snakes
+```{r}
+CEWL_LMM_1 <- lme4::lmer(data = mother_data_all_final_8,
+                      CEWL_g_m2h ~
+                        Hydration_Trmt *
+                        (Days_in_Treatment) +
+                        calibrated_cloacal_temp +
+                        msmt_temp_C +
+                        msmt_RH_percent +
+                        (1|Indiv_ID))
+
+summary(CEWL_LMM_1)
+#Lower t values are less significant
+drop1(CEWL_LMM_1)
+anova(CEWL_LMM_1)
+```
+Based on model 1, the first variable to drop is the interaction between hydration treatment and days in treatment. 
+```{r}
+CEWL_LMM_2 <- lme4::lmer(data = mother_data_all_final_8,
+                      CEWL_g_m2h ~
+                        Hydration_Trmt +
+                        Days_in_Treatment +
+                        calibrated_cloacal_temp +
+                        msmt_temp_C +
+                        msmt_RH_percent +
+                        (1|Indiv_ID))
+
+summary(CEWL_LMM_2)
+#Lower t values are less significant
+drop1(CEWL_LMM_2)
+anova(CEWL_LMM_2)
+```
+The next variable to drop is body temp. 
+```{r}
+CEWL_LMM_3 <- lme4::lmer(data = mother_data_all_final_8,
+                      CEWL_g_m2h ~
+                        Hydration_Trmt +
+                        Days_in_Treatment +
+                        msmt_temp_C +
+                        msmt_RH_percent +
+                        (1|Indiv_ID))
+
+summary(CEWL_LMM_3)
+#Lower t values are less significant
+drop1(CEWL_LMM_3)
+anova(CEWL_LMM_3)
+```
+The next to drop is days in treatment 
+```{r}
+CEWL_LMM_4 <- lme4::lmer(data = mother_data_all_final_8,
+                      CEWL_g_m2h ~
+                        Hydration_Trmt +
+                        msmt_temp_C +
+                        msmt_RH_percent +
+                        (1|Indiv_ID))
+
+summary(CEWL_LMM_4)
+#Lower t values are less significant
+drop1(CEWL_LMM_4)
+anova(CEWL_LMM_4)
+```
+The next variable to drop is hydration treatment. 
+```{r}
+CEWL_LMM_5 <- lme4::lmer(data = mother_data_all_final_8,
+                      CEWL_g_m2h ~
+                        msmt_temp_C +
+                        msmt_RH_percent +
+                        (1|Indiv_ID))
+
+summary(CEWL_LMM_5)
+#Lower t values are less significant
+drop1(CEWL_LMM_5)
+anova(CEWL_LMM_5)
+```
+Next to drop is ambient temp
+```{r}
+CEWL_LMM_6 <- lme4::lmer(data = mother_data_all_final_8,
+                      CEWL_g_m2h ~
+                        msmt_RH_percent +
+                        (1|Indiv_ID))
+
+summary(CEWL_LMM_6)
+#Lower t values are less significant
+drop1(CEWL_LMM_6)
+anova(CEWL_LMM_6)
+```
+null model
+```{r}
+CEWL_LMM_null <- lme4::lmer(data = mother_data_all_final_8,
+                      CEWL_g_m2h ~ 1 +
+                        (1|Indiv_ID))
+
+summary(CEWL_LMM_null)
+#Lower t values are less significant
+anova(CEWL_LMM_null)
+```
+####Model Selection
+```{r CEWL mod compare}
+cewl_models_all <- list(CEWL_LMM_1, CEWL_LMM_2, CEWL_LMM_3, CEWL_LMM_4, CEWL_LMM_5, CEWL_LMM_6, CEWL_LMM_null)
+
+#specify model names
+cewl_mod_names_all <- c('model1', 
+                    'model2', 
+                    'model3',
+                    'model4',
+                    'model5',
+                    'model6',
+                    'modelnull')
+
+#calculate AIC of each model
+cewl_AICc_all <- data.frame(aictab(cand.set = cewl_models_all, 
+                                 modnames = cewl_mod_names_all))
+cewl_AICc_all
+```
+The best model is model 4 below: 
+```{r}
+CEWL_LMM_4 <- lmerTest::lmer(data = mother_data_all_final_8,
+                      CEWL_g_m2h ~
+                        Hydration_Trmt +
+                        msmt_temp_C +
+                        msmt_RH_percent +
+                        (1|Indiv_ID))
+
+summary(CEWL_LMM_4)
+anova(CEWL_LMM_4, type = "3", ddf = "Kenward-Roger")
+#Result: For all pregnant and post-parturiant female snakes, CEWL had a positive relationship with ambient temperature (estimate = 2.72, SE = 0.51, F(1,73.62) = 27.52, p < 0.0001) and ambient humidity (estimate = 1.18, SE = 0.17, F(1,73.48) = 45.23, p < 0.0001) . On average, snakes in the hydration treatment had higher rates of CEWL (estimate = 2.14, SE = 0.89, F(1,26.96) = 5.69, p = 0.024).
+
+```
+Getting confidence intervals for figure. 
+```{r}
+CI_mom_CEWL <- data.frame(emmeans(CEWL_LMM_4, "Hydration_Trmt"))
+```
+
+figure
+```{r}
+ggplot() +
+  geom_jitter(data = mother_data_all_final_8, 
+             aes(x = Hydration_Trmt, 
+                 y = CEWL_g_m2h, 
+                 color = Hydration_Trmt),
+                 size = 2) +
+  geom_point(data = CI_mom_CEWL, 
+             aes(x = Hydration_Trmt, 
+                 y = emmean),
+             color = "black", 
+             size = 2) +
+  theme_classic() +
+  labs(x = "Treatment", y = "CEWL") +
+  geom_errorbar(data = CI_mom_CEWL, aes(x = Hydration_Trmt,
+                               y = emmean, 
+                               ymin = lower.CL, 
+                               ymax = upper.CL,
+                               width = .3),
+                color = "black")
+```
+
+
+####Final Model & Assumptions
+We are choosing model 4 as our best model. 
+Check linear regression assumptions/conditions:
+```{r CEWL exp model assumptions}
+plot(CEWL_LMM_4)
+shapiro.test(residuals(CEWL_LMM_4))
+car::vif(CEWL_LMM_4)
+#all ok?
+```
+
+#Osmolarity Models
+
+##Baseline Model
+
+```{r}
+mothers_baseline_birthsnakes <- mothers_baseline %>%
+  filter(Gave_Birth == "Y")
+
+partur <- lm(data = mothers_baseline_birthsnakes, 
+             Plasma_Osmol_Rep_mean ~ Day_Relative)
+
+summary(partur)
+anova(partur)
+```
+Day relative to birth was not significant. Will run all individuals in one model. 
+
+Now creating an initial model with all variables that may impact baseline osmol so mass, SVL, body condition, capture date.
+```{r}
+baseline_osmol_1 <- lme4::lmer(data = mothers_baseline,
+                      Plasma_Osmol_Rep_mean ~
+                        Mass_g +
+                        SVL_cm +
+                        Body_Condition +
+                        (1|CEWL_Blood_Collect_Date))
+                    
+car::vif(baseline_osmol_1)
+summary(baseline_osmol_1)
+drop1(baseline_osmol_1)
+anova(baseline_osmol_1)
+
+TukeyHSD(aov(data = mothers_baseline, formula = Plasma_Osmol_Rep_mean ~ Rookery_Capture_ID))
+```
+The capture date didn't account for any of the variance so first dropping the random effect.
+```{r}
+baseline_osmol_2 <- lm(data = mothers_baseline,
+                      Plasma_Osmol_Rep_mean ~
+                        Mass_g +
+                        SVL_cm +
+                        Body_Condition)
+                    
+car::vif(baseline_osmol_2)
+summary(baseline_osmol_2)
+drop1(baseline_osmol_2)
+anova(baseline_osmol_2)
+```
+multicollinearity with these three variables. Will try dropping mass first since it explains the least amount of variability. 
+```{r}
+baseline_osmol_3 <- lm(data = mothers_baseline,
+                      Plasma_Osmol_Rep_mean ~
+                        SVL_cm +
+                        Body_Condition)
+                    
+car::vif(baseline_osmol_3)
+summary(baseline_osmol_3)
+drop1(baseline_osmol_3)
+anova(baseline_osmol_3)
+```
+No more issues of multicollinearity. Now will drop SVL. 
+```{r}
+baseline_osmol_4 <- lm(data = mothers_baseline,
+                      Plasma_Osmol_Rep_mean ~
+                        Body_Condition)
+                    
+car::vif(baseline_osmol_4)
+summary(baseline_osmol_4)
+drop1(baseline_osmol_4)
+anova(baseline_osmol_4)
+```
+
+null model
+```{r}
+baseline_osmol_null <- lm(data = mothers_baseline,
+                      Plasma_Osmol_Rep_mean ~ 1)
+```
+
+###Model selection
+```{r CEWL mod compare}
+baseline_osmol_mods <- list(baseline_osmol_2, baseline_osmol_3, baseline_osmol_4, baseline_osmol_null)
+
+#specify model names
+baeline_osmol_mod_names_all <- c('model2', 
+                    'model3',
+                    'model4',
+                    'modelnull')
+
+#calculate AIC of each model
+cewl_AICc_all <- data.frame(aictab(cand.set = baseline_osmol_mods, 
+                                 modnames = baeline_osmol_mod_names_all))
+cewl_AICc_all
+```
+The best model is model is 3:
+```{r}
+baseline_osmol <- lm(data = mothers_baseline,
+                      Plasma_Osmol_Rep_mean ~
+                        SVL_cm +
+                        Body_Condition)
+
+summary(baseline_osmol)
+anova(baseline_osmol)
+```
+Result: Baseline osmolality was best explained by body condition (lm: estimate = -81.37, SE = 46.9, F(1, 26) = 3.01, p = 0.095) and SVL (lm: estimate = 0.95, SE = 0.50, F(1, 26) = 2.5, p = 0.13). 
+
+
+##Initial Models  (Experimental)
+Is there a difference in osmolarity between the treatment group and the control group the day after capture? 
+```{r}
+DAC_osmol <- mother_data_all_final_8 %>%
+  dplyr::filter(Preg_Stage == "DAC")
+
+DAC_osmol_lm <- lm(Plasma_Osmol_Rep_mean ~ Hydration_Trmt, data = DAC_osmol)
+
+summary(DAC_osmol_lm)
+anova(DAC_osmol_lm)
+
+#Result: On average, the hydration treatment had higher baseline levels of osmolarity compared to the control group (estimate = 25.03, SE = 5.41, F(1,27) = 21.38, p < 0.0001).
+mother_data_all_final_8 %>%
+  dplyr::filter(Preg_Stage == "DAC") %>%
+  ggplot(aes(x = Hydration_Trmt, y = Plasma_Osmol_Rep_mean, fill = Hydration_Trmt)) +
+  geom_boxplot() +
+  theme_classic() +
+  labs(x = "Hydration Treatment", y = "Plasma Osmolarity")
+```
+
+###Snakes that DID give birth
+```{r}
+summary(birth_snakes)
+BirthSnakes_LMM_1 <- lme4::lmer(data = birth_snakes,
+                      Plasma_Osmol_Rep_mean ~
+                        Hydration_Trmt *
+                        Days_in_Treatment +
+                        Day_Relative +
+                        (1|Indiv_ID))
+
+summary(BirthSnakes_LMM_1)
+#Lower t values are less significant
+drop1(BirthSnakes_LMM_1)
+anova(BirthSnakes_LMM_1)
+```
+Based on model 1, the first variable to drop is interaction. 
+```{r}
+summary(birth_snakes)
+BirthSnakes_LMM_2 <- lme4::lmer(data = birth_snakes,
+                      Plasma_Osmol_Rep_mean ~
+                        Hydration_Trmt +
+                        Days_in_Treatment +
+                        Day_Relative +
+                        (1|Indiv_ID))
+
+summary(BirthSnakes_LMM_2)
+#Lower t values are less significant
+drop1(BirthSnakes_LMM_2)
+anova(BirthSnakes_LMM_2)
+```
+The next variable to drop is tmt 
+```{r}
+summary(birth_snakes)
+BirthSnakes_LMM_3 <- lme4::lmer(data = birth_snakes,
+                      Plasma_Osmol_Rep_mean ~
+                        Days_in_Treatment +
+                        Day_Relative +
+                        (1|Indiv_ID))
+
+summary(BirthSnakes_LMM_3)
+#Lower t values are less significant
+drop1(BirthSnakes_LMM_3)
+anova(BirthSnakes_LMM_3)
+```
+Next to drop is days in treatment
+```{r}
+summary(birth_snakes)
+BirthSnakes_LMM_4 <- lme4::lmer(data = birth_snakes,
+                      Plasma_Osmol_Rep_mean ~
+                        Day_Relative +
+                        (1|Indiv_ID))
+
+summary(BirthSnakes_LMM_4)
+#Lower t values are less significant
+drop1(BirthSnakes_LMM_4)
+anova(BirthSnakes_LMM_4)
+```
+null model 
+```{r}
+summary(birth_snakes)
+BirthSnakes_LMM_null<- lme4::lmer(data = birth_snakes,
+                      Plasma_Osmol_Rep_mean ~ 1 +
+                        (1|Indiv_ID))
+
+summary(BirthSnakes_LMM_null)
+#Lower t values are less significant
+drop1(BirthSnakes_LMM_null)
+anova(BirthSnakes_LMM_null)
+```
+####Model Selection
+```{r CEWL mod compare}
+osmolarity_models <- list(BirthSnakes_LMM_1, BirthSnakes_LMM_2, BirthSnakes_LMM_3, BirthSnakes_LMM_4, BirthSnakes_LMM_null)
+
+#specify model names
+osmolarity_mod_names <- c('model1', 
+                    'model2', 
+                    'model3',
+                    'model4',
+                    'modelnull')
+
+#calculate AIC of each model
+osmolarity_AICc <- data.frame(aictab(cand.set = osmolarity_models, 
+                                 modnames = osmolarity_mod_names))
+osmolarity_AICc
+```
+The best model is 1.
+```{r}
+BirthSnakes_LMM_1 <- lmerTest::lmer(data = birth_snakes,
+                      Plasma_Osmol_Rep_mean ~
+                        Hydration_Trmt *
+                        Days_in_Treatment +
+                        Day_Relative +
+                        (1|Indiv_ID))
+
+summary(BirthSnakes_LMM_1)
+#Lower t values are less significant
+anova(BirthSnakes_LMM_1)
+emtrends(BirthSnakes_LMM_1, "Hydration_Trmt", var = "Days_in_Treatment")
+pairs(emtrends(BirthSnakes_LMM_1, "Hydration_Trmt", var = "Days_in_Treatment"))
+emtrends(BirthSnakes_LMM_1, "Hydration_Trmt", var = "Day_Relative")
+#result: The best osmolarity model for the snakes that did give birth included the day the measurement was taken relative to the day of parturition, hydration treatment, the number of days in treatment, and the interaction between hydration treatment and the number of days in treatment (Table 1) Table 1 = a combo of summary and anova table. Plasma osmolarity increased by 2.16 for every day in treatment for snakes in the control treatment, but decreased by 1.42 for snakes in the hydration treatment (pairwise comparison of the slopes: estimate = 3.58, SE = 0.86, p < 0.001)
+```
+####Final Model & Assumptions
+We are choosing model 2 as our best model. 
+Check linear regression assumptions/conditions:
+```{r CEWL exp model assumptions}
+plot(BirthSnakes_LMM_2)
+shapiro.test(residuals(BirthSnakes_LMM_2))
+car::vif(BirthSnakes_LMM_2)
+#all ok?
+```
+
+###Snakes that DID NOT give brith
+```{r}
+No_BirthSnakes_LMM_1 <- lmerTest::lmer(data = no_birth_snakes,
+                      Plasma_Osmol_Rep_mean ~
+                        Hydration_Trmt *
+                        Days_in_Treatment +
+                        (1|Indiv_ID))
+
+summary(No_BirthSnakes_LMM_1)
+#Lower t values are less significant
+drop1(No_BirthSnakes_LMM_1)
+anova(No_BirthSnakes_LMM_1)
+```
+First drop interaction
+```{r}
+No_BirthSnakes_LMM_2 <- lmerTest::lmer(data = no_birth_snakes,
+                      Plasma_Osmol_Rep_mean ~
+                        Hydration_Trmt +
+                        Days_in_Treatment +
+                        (1|Indiv_ID))
+
+summary(No_BirthSnakes_LMM_2)
+#Lower t values are less significant
+drop1(No_BirthSnakes_LMM_2)
+anova(No_BirthSnakes_LMM_2)
+```
+Now drop  days in treatment 
+```{r}
+No_BirthSnakes_LMM_3 <- lmerTest::lmer(data = no_birth_snakes,
+                      Plasma_Osmol_Rep_mean ~
+                        Hydration_Trmt +
+                        (1|Indiv_ID))
+
+summary(No_BirthSnakes_LMM_3)
+#Lower t values are less significant
+drop1(No_BirthSnakes_LMM_3)
+anova(No_BirthSnakes_LMM_3)
+```
+null model 
+```{r}
+No_BirthSnakes_LMM_null <- lmerTest::lmer(data = no_birth_snakes,
+                      Plasma_Osmol_Rep_mean ~ 1 +
+                        (1|Indiv_ID))
+```
+
+####Model Selection
+```{r CEWL mod compare}
+osmolarity_models <- list(No_BirthSnakes_LMM_1, No_BirthSnakes_LMM_2, No_BirthSnakes_LMM_3, No_BirthSnakes_LMM_null)
+
+#specify model names
+osmolarity_mod_names <- c('model1', 
+                    'model2', 
+                    'model3',
+                    'modelnull')
+
+#calculate AIC of each model
+osmolarity_AICc <- data.frame(aictab(cand.set = osmolarity_models, 
+                                 modnames = osmolarity_mod_names))
+osmolarity_AICc
+```
+####Final Model & Assumptions
+Best model is 1
+```{r}
+No_BirthSnakes_LMM_1 <- lmerTest::lmer(data = no_birth_snakes,
+                      Plasma_Osmol_Rep_mean ~
+                        Hydration_Trmt *
+                        Days_in_Treatment +
+                        (1|Indiv_ID))
+
+summary(No_BirthSnakes_LMM_1)
+anova(No_BirthSnakes_LMM_1)
+emtrends(No_BirthSnakes_LMM_1, "Hydration_Trmt", var = "Days_in_Treatment")
+pairs(emtrends(No_BirthSnakes_LMM_1, "Hydration_Trmt", var = "Days_in_Treatment"))
+#Result: The best osmolarity model for the mothers that did not give birth included hydration treatment, the number of days in treatment, and the interaction between treatment and the number of days in treatment (Table). Plasma osmolarity increased by 2.04 per day in treatment for the snakes in the control group and decreased by 2.24 for snakes in the hydration treatment (pairwise comparison of slopes: estimate = 4.29, SE = 0.88, t = 4.91, p < 0.001). 
+```
+Check linear regression assumptions/conditions:
+```{r CEWL exp model assumptions}
+plot(No_BirthSnakes_LMM_1)
+shapiro.test(residuals(No_BirthSnakes_LMM_1))
+car::vif(No_BirthSnakes_LMM_1)
+#all ok
+```
+
+#CEWL vs Osmolarity 
+Looking at the relationship between cewl and osmolarity. I am not sure if I can do this because the correlation have multiple measurements from 1 individual. 
+```{r}
+cor(mother_data_all_final_8$Plasma_Osmol_Rep_mean, mother_data_all_final_8$CEWL_g_m2h)
+cor.test(mother_data_all_final_8$Plasma_Osmol_Rep_mean, mother_data_all_final_8$CEWL_g_m2h)
+
+cewl_osmol_lm <- lm(data = mother_data_all_final_8,
+                    CEWL_g_m2h ~ Plasma_Osmol_Rep_mean)
+summary(cewl_osmol_lm)
+
+cewl_osmol_lm_2 <- lm(data = mother_data_all_final_8,
+                    Plasma_Osmol_Rep_mean ~ CEWL_g_m2h)
+summary(cewl_osmol_lm_2)
+```
+
+Individual dfs
+```{r}
+mothers_DAC <- mother_data_all_final_8 %>%
+  filter(Preg_Stage == "DAC")
+
+mothers_DAB <- mother_data_all_final_8 %>%
+  filter(Preg_Stage == "DAB")
+
+mothers_1WAC <- mother_data_all_final_8 %>%
+  filter(Preg_Stage == "1WAC")
+```
+
+Day after capture
+```{r}
+cor(mothers_DAC$Plasma_Osmol_Rep_mean, mothers_DAC$CEWL_g_m2h)
+cor.test(mothers_DAC$Plasma_Osmol_Rep_mean, mothers_DAC$CEWL_g_m2h)
+
+dac_lm <- lm(data = mothers_DAC, CEWL_g_m2h ~ Plasma_Osmol_Rep_mean)
+summary(dac_lm)
+anova(dac_lm)
+
+#Result: For the pregnant females day after capture, there is a positive relationship between plasma osmolarity and CEWL (estimate = 0.098, SE = 0.039, F(1,27) = 6.24, p = 0.019, R = 0.43).
+```
+Seems to be a significant correlation.
+Figure:
+```{r}
+ggplot(data = mothers_DAC, aes(x = Plasma_Osmol_Rep_mean, y = CEWL_g_m2h)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm") +
+  stat_cor(method = "pearson") +
+  labs(x = "Plasma Osmolality", y = "CEWL", title = "Pregnant Females Day After Capture")
+```
+Day after birth
+```{r}
+cor(mothers_DAB$Plasma_Osmol_Rep_mean, mothers_DAB$CEWL_g_m2h)
+cor.test(mothers_DAB$Plasma_Osmol_Rep_mean, mothers_DAB$CEWL_g_m2h)
+
+dab_lm <- lm(data = mothers_DAB, CEWL_g_m2h ~ Plasma_Osmol_Rep_mean)
+summary(dab_lm)
+anova(dab_lm)
+#Result: For the snakes day after parturition, there is no significant correlation between plasma osmolarity and CEWL (estimate = 0.035, SE - 0.065, F(1,16) = 0.29, p = 0.60). However, the relationship is still positive. 
+```
+No correlation.
+Figure:
+```{r}
+ggplot(data = mothers_DAB, aes(x = Plasma_Osmol_Rep_mean, y = CEWL_g_m2h)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm") +
+  stat_cor(method = "pearson") +
+  labs(x = "Plasma Osmolality", y = "CEWL", title = "Pregnant Females Day After Birth")
+```
+
+1 week after capture
+```{r}
+cor(mothers_1WAC$Plasma_Osmol_Rep_mean, mothers_1WAC$CEWL_g_m2h)
+cor.test(mothers_1WAC$Plasma_Osmol_Rep_mean, mothers_1WAC$CEWL_g_m2h)
+
+wac_lm <- lm(data = mothers_1WAC, CEWL_g_m2h ~ Plasma_Osmol_Rep_mean)
+summary(wac_lm)
+anova(wac_lm)
+#Result: For all pregnant snakes one week after capture and prior to parturition, there is no significant correlation between plasma osmolarity and CEWL (estimate = 0.029, SE - 0.044, F(1,18) = 0.44, p = 0.51). However, the relationship is still positive. 
+```
+No correlation
+Figure:
+```{r}
+ggplot(data = mothers_1WAC, aes(x = Plasma_Osmol_Rep_mean, y = CEWL_g_m2h)) +
+  geom_point() +
+  theme_classic() +
+  geom_smooth(method = "lm") +
+  stat_cor(method = "pearson") +
+  labs(x = "Plasma Osmolality", y = "CEWL", title = "Pregnant Females 1 Week After Capture")
+```
+
+
+
+
+
