@@ -1,8 +1,12 @@
 ---
 title: "Pregnant Female Data Analysis Colorado 2022"
-author: "Robin Bedard"
-date: '2023-01-12'
-output: pdf_document
+author: "Robin Bedard & Savannah Weaver"
+output: 
+  rmdformats::html_clean:
+    highlight: tango
+    thumbnails: FALSE
+    toc: TRUE
+    toc_depth: 3
 ---
 
 
@@ -10,16 +14,12 @@ output: pdf_document
 
 
 ```{r}
-`%nin%` = Negate(`%in%`)
-library("tidyverse")
-#library("stringr")
-#library("tidyr")
-library("PerformanceAnalytics")
+library("tidyverse") # for dplyr workflow + ggplot
+library("rmdformats") # pretty Rmd format
 library("lme4")
 library("lmerTest")
-#install.packages("readr")
-#library("readr")
 library("emmeans")
+library("broom")
 library("AICcmodavg")
 library("ggpubr")
 ```
@@ -34,18 +34,19 @@ library("ggpubr")
 
 ## Osml, Mass, SVL
 
+I think this is redundant with the mother_data_all_final_2
 ```{r}
-#Body measurement and measurements that are not replicated
-mother_data_final <- read_rds("data/FinalMotherViridis.RDS") 
-
-#Osmolarity data after outliers were removed and replicates were averaged 
-mother_temp_osm <- read_rds("data/clean_MotherOsmolality.RDS")
-
-#merging the two data frames so osmolarity data is with all other data
-mother_data_all_final <- left_join(mother_data_final, mother_temp_osm, 
-                       by = c("Indiv_ID", "CEWL_Blood_Collect_Date")) %>% 
-  mutate(Preg_Stage = factor(Preg_Stage, 
-                      levels = c("DAC", "1WAC", "2WAC", "DAB", "1WAB")))
+# #Body measurement and measurements that are not replicated
+# mother_data_final <- read_rds("data/FinalMotherViridis.RDS") 
+# 
+# #Osmolarity data after outliers were removed and replicates were averaged 
+# mother_temp_osm <- read_rds("data/clean_MotherOsmolality.RDS")
+# 
+# #merging the two data frames so osmolarity data is with all other data
+# mother_data_all_final <- left_join(mother_data_final, mother_temp_osm, 
+#                        by = c("Indiv_ID", "CEWL_Blood_Collect_Date")) %>% 
+#   mutate(Preg_Stage = factor(Preg_Stage, 
+#                       levels = c("DAC", "1WAC", "2WAC", "DAB", "1WAB")))
 ```
 
 
@@ -100,7 +101,7 @@ days_in_tmt_clean <- days_in_tmt %>%
 
 
 
-## Merge Data
+## Merge Dataframes
 
 
 ```{r}
@@ -257,292 +258,6 @@ baseline_final_mod <- lmerTest::lmer(data = mothers_baseline,
 
 summary(baseline_final_mod)
 anova(baseline_final_mod)
-```
-
-
-
-
-
-
-####?Pub Fig
-```{r}
-ggplot() +
-  geom_jitter(data = mothers_baseline, 
-             aes(x = Hydration_Trmt, 
-                 y = CEWL_g_m2h, 
-                 color = Hydration_Trmt),
-             size = 2,
-             alpha = 0.5,
-             show.legend = TRUE) +
-  geom_point(data = mom_baseline_cewl_CI, 
-             aes(x = Hydration_Trmt, 
-                 y = emmean),
-             color = "black", 
-             size = 3) +
-  theme_classic() +
-  annotate(geom = "text", x = 1.6, y = 10, label = "p = 0.30", 
-           size = 5) +
-  scale_color_manual(values = c("C" = "orange2", "W" = "dodgerblue")) +
-  labs(x = "", y = "CEWL (g m2h-1)") +
-  geom_errorbar(data = mom_baseline_cewl_CI, aes(x = Hydration_Trmt,
-                               y = emmean, 
-                               ymin = lower.CL, 
-                               ymax = upper.CL,
-                               width = .3),
-                color = "black") +
-  theme(text = element_text(color = "black", 
-                            size = 22),
-        axis.text = element_text(color = "black", 
-                                 size = 16)) +
-scale_y_continuous(limits = c(8, 30.5), breaks = seq(8, 31, by = 2)) -> baseline_cewl_fig
-```
-###?Post Treatment Model
-```{r}
-not_dac_or_1wab <- mother_data_all_final_8 %>%
-  filter(Preg_Stage != "DAC") %>%
-  filter(Preg_Stage != "1WAB") %>%
-  filter(Preg_Stage != "2WAC")
-
-df_1wac <- mother_data_all_final_8 %>%
-  filter(Preg_Stage == "1WAC")
-
-df_dab <- mother_data_all_final_8 %>%
-  filter(Preg_Stage == "DAB")
-
-dab_no_dac <- df_dab[c(9, 10, 11, 13, 14, 15, 16, 17, 18), ]
-
-post_tmt_df <- full_join(df_1wac, dab_no_dac)
-```
-
-#?SAVANNAH: OLD POST TREATMENT CEWL MODEL
- post treatment linear model to see the effect of treatment on cewl. This has one measurement per individual. For most individuals it is their one week after capture measuremeant. If the snake gave birth prior to that one week timeframe, this is their post birth osmolality.
-```{r}
-post_tmt_cewl_lm <- lm(data = post_tmt_df, CEWL_g_m2h ~ Hydration_Trmt)
-
-summary(post_tmt_cewl_lm)
-anova(post_tmt_cewl_lm)
-```
-Getting confidence intervals for figure. 
-```{r}
-CI_mom_CEWL <- data.frame(emmeans(post_tmt_cewl_lm, "Hydration_Trmt"))
-```
-
-#####?Pub Figure
-```{r}
-ggplot() +
-  geom_jitter(data = post_tmt_df, 
-             aes(x = Hydration_Trmt, 
-                 y = CEWL_g_m2h, 
-                 color = Hydration_Trmt),
-             size = 2,
-             alpha = 0.5,
-             show.legend = TRUE) +
-  geom_point(data = CI_mom_CEWL, 
-             aes(x = Hydration_Trmt, 
-                 y = emmean),
-             color = "black", 
-             size = 2) +
-  theme_classic() +
-  annotate(geom = "text", x = 1.3, y = 30, label = "p = 0.58", 
-           size = 5) +
-  scale_color_manual(values = c("C" = "orange2", "W" = "dodgerblue")) +
-  labs(x = "", y = "") +
-  geom_errorbar(data = CI_mom_CEWL, aes(x = Hydration_Trmt,
-                               y = emmean, 
-                               ymin = lower.CL, 
-                               ymax = upper.CL,
-                               width = .3),
-                color = "black")+
-  theme(text = element_text(color = "black", 
-                            size = 22),
-        axis.text = element_text(color = "black", 
-                                 size = 16)) +
-  scale_y_continuous(limits = c(8, 30.5), breaks = seq(8, 31, by = 2)) -> cewl_posttmt_mothers
-
-ggsave("Mother CEWL v Treatment Experimental.png", 
-       plot = cewl_v_tmt_mothers,
-       width = 4,
-       height = 4)
-
-```
-
-
-##?Initial Models (Experimental)
-Is there a difference in cewl between the treatment group and the control group the day after capture? 
-```{r}
-DAC_cewl <- mother_data_all_final_8 %>%
-  dplyr::filter(Preg_Stage == "DAC")
-
-DAC_cewl_lm <- lm(CEWL_g_m2h ~ Hydration_Trmt, data = DAC_cewl)
-
-summary(DAC_cewl_lm)
-anova(DAC_cewl_lm)
-
-#Result: Baseline rates of CEWL did not differ between treatment groups (estimate = 1.68, SE = 1.60, F(1,27) = 1.10, p = 0.30).
-mother_data_all_final_8 %>%
-  dplyr::filter(Preg_Stage == "DAC") %>%
-  ggplot(aes(x = Hydration_Trmt, y = Plasma_Osmol_Rep_mean, fill = Hydration_Trmt)) +
-  geom_boxplot() +
-  theme_classic() +
-  labs(x = "Hydration Treatment", y = "Plasma Osmolarity")
-```
-Snakes that DID give birth
-```{r}
-BirthSnakes_CEWL_LMM_1 <- lme4::lmer(data = birth_snakes,
-                      CEWL_g_m2h ~
-                        Hydration_Trmt *
-                        (Day_Relative + Days_in_Treatment) +
-                        calibrated_cloacal_temp +
-                        msmt_temp_C +
-                        msmt_RH_percent +
-                        (1|Indiv_ID))
-
-summary(BirthSnakes_CEWL_LMM_1)
-#Lower t values are less significant
-drop1(BirthSnakes_CEWL_LMM_1)
-anova(BirthSnakes_CEWL_LMM_1)
-#Warning means random effects are small. 
-```
-Based on model, 1 the first variable to drop is the interaction between hydration treatment and the number of days in treatment. 
-```{r}
-BirthSnakes_CEWL_LMM_2 <- lme4::lmer(data = birth_snakes,
-                      CEWL_g_m2h ~
-                        Hydration_Trmt *
-                        Day_Relative +
-                        calibrated_cloacal_temp +
-                        msmt_temp_C +
-                        msmt_RH_percent +
-                        Days_in_Treatment +
-                        (1|Indiv_ID))
-
-summary(BirthSnakes_CEWL_LMM_2)
-#Lower t values are less significant
-drop1(BirthSnakes_CEWL_LMM_2)
-anova(BirthSnakes_CEWL_LMM_2)
-#Warning means random effects are small. 
-```
-Based on model 2, the next variable to drop is days in treatment. 
-```{r}
-BirthSnakes_CEWL_LMM_3 <- lme4::lmer(data = birth_snakes,
-                      CEWL_g_m2h ~
-                        Hydration_Trmt *
-                        Day_Relative +
-                        calibrated_cloacal_temp +
-                        msmt_temp_C +
-                        msmt_RH_percent +
-                        (1|Indiv_ID))
-
-summary(BirthSnakes_CEWL_LMM_3)
-#Lower t values are less significant
-drop1(BirthSnakes_CEWL_LMM_3)
-anova(BirthSnakes_CEWL_LMM_3)
-#Warning means random effects are small. 
-```
-Based on model 3, the next variable to drop is the interaction between hydration treatment and day relative. 
-```{r}
-BirthSnakes_CEWL_LMM_4 <- lme4::lmer(data = birth_snakes,
-                      CEWL_g_m2h ~
-                        Hydration_Trmt +
-                        Day_Relative +
-                        calibrated_cloacal_temp +
-                        msmt_temp_C +
-                        msmt_RH_percent +
-                        (1|Indiv_ID))
-
-summary(BirthSnakes_CEWL_LMM_4)
-#Lower t values are less significant
-drop1(BirthSnakes_CEWL_LMM_4)
-anova(BirthSnakes_CEWL_LMM_4)
-#Warning means random effects are small. 
-```
-Based on model 4, the next variable to drop is hydration treatment. 
-```{r}
-BirthSnakes_CEWL_LMM_5 <- lme4::lmer(data = birth_snakes,
-                      CEWL_g_m2h ~
-                        calibrated_cloacal_temp +
-                        msmt_temp_C +
-                        Day_Relative +
-                        msmt_RH_percent +
-                        (1|Indiv_ID))
-
-summary(BirthSnakes_CEWL_LMM_5)
-#Lower t values are less significant
-drop1(BirthSnakes_CEWL_LMM_5)
-anova(BirthSnakes_CEWL_LMM_5)
-#Warning means random effects are small. 
-```
-Next variable to drop is day relative 
-```{r}
-BirthSnakes_CEWL_LMM_6 <- lme4::lmer(data = birth_snakes,
-                      CEWL_g_m2h ~
-                        calibrated_cloacal_temp +
-                        msmt_temp_C +
-                        msmt_RH_percent +
-                        (1|Indiv_ID))
-
-summary(BirthSnakes_CEWL_LMM_6)
-#Lower t values are less significant
-drop1(BirthSnakes_CEWL_LMM_6)
-anova(BirthSnakes_CEWL_LMM_6)
-#Warning means random effects are small. 
-```
-next to drop is body temp
-```{r}
-BirthSnakes_CEWL_LMM_7 <- lme4::lmer(data = birth_snakes,
-                      CEWL_g_m2h ~
-                        msmt_temp_C +
-                        msmt_RH_percent +
-                        (1|Indiv_ID))
-
-summary(BirthSnakes_CEWL_LMM_7)
-#Lower t values are less significant
-drop1(BirthSnakes_CEWL_LMM_7)
-anova(BirthSnakes_CEWL_LMM_7)
-#Warning means random effects are small. 
-```
-Next to drop is ambient temp
-```{r}
-BirthSnakes_CEWL_LMM_8 <- lme4::lmer(data = birth_snakes,
-                      CEWL_g_m2h ~
-                        msmt_RH_percent +
-                        (1|Indiv_ID))
-
-summary(BirthSnakes_CEWL_LMM_8)
-#Lower t values are less significant
-drop1(BirthSnakes_CEWL_LMM_8)
-anova(BirthSnakes_CEWL_LMM_8)
-#Warning means random effects are small. 
-```
-null model 
-```{r}
-BirthSnakes_CEWL_LMM_null <- lme4::lmer(data = birth_snakes,
-                      CEWL_g_m2h ~ 1 + (1|Indiv_ID))
-
-summary(BirthSnakes_CEWL_LMM_null)
-#Lower t values are less significant
-drop1(BirthSnakes_CEWL_LMM_null)
-anova(BirthSnakes_CEWL_LMM_null)
-#Warning means random effects are small. 
-```
-Model Selection
-```{r CEWL mod compare}
-cewl_models <- list(BirthSnakes_CEWL_LMM_1, BirthSnakes_CEWL_LMM_2, BirthSnakes_CEWL_LMM_3, BirthSnakes_CEWL_LMM_4, BirthSnakes_CEWL_LMM_5, BirthSnakes_CEWL_LMM_6, BirthSnakes_CEWL_LMM_7, BirthSnakes_CEWL_LMM_8, BirthSnakes_CEWL_LMM_null)
-
-#specify model names
-cewl_mod_names <- c('model1', 
-                    'model2', 
-                    'model3',
-                    'model4',
-                    'model5',
-                    'model6',
-                    'model7',
-                    'model8',
-                    'modelnull')
-
-#calculate AIC of each model
-cewl_AICc <- data.frame(aictab(cand.set = cewl_models, 
-                                 modnames = cewl_mod_names))
-cewl_AICc
 ```
 
 
@@ -784,168 +499,10 @@ cewl_AICc_all
 They are all equivalent.
 
 
-
-###?Pub Figure
-
-Linear model mother osmolality DAC
-
-```{r}
-osmol_tmt_DAC_lm <- lm(data = mothers_baseline, Plasma_Osmol_Rep_mean ~ Hydration_Trmt)
-mom_baseline_osmol_CI <- data.frame(emmeans(osmol_tmt_DAC_lm, "Hydration_Trmt"))
-
-summary(osmol_tmt_DAC_lm)
-anova(osmol_tmt_DAC_lm)
-
-ggplot(data = mothers_baseline,
-       aes(x = Body_Condition,
-           y = Plasma_Osmol_Rep_mean)) +
-  geom_point() +
-  geom_smooth(method = "lm")
-```
-Getting CI
-```{r}
-mom_baseline_osmol_CI <- data.frame(emmeans(osmol_tmt_DAC_lm, "Hydration_Trmt"))
-```
-
-```{r}
-ggplot() +
-  geom_jitter(data = mothers_baseline, 
-             aes(x = Hydration_Trmt, 
-                 y = Plasma_Osmol_Rep_mean, 
-                 color = Hydration_Trmt),
-             size = 2,
-             alpha = 0.5,
-             show.legend = TRUE) +
-  geom_point(data = mom_baseline_osmol_CI, 
-             aes(x = Hydration_Trmt, 
-                 y = emmean),
-             color = "black", 
-             size = 3) +
-  theme_classic() +
-  annotate(geom = "text", x = 1, y = 370, label = "p < 0.0001", 
-           size = 5) +
-  scale_color_manual(values = c("C" = "orange2", "W" = "dodgerblue")) +
-  labs(x = "", y = "Osmolality (mmol kg-1)", color = "Treatment", title = "Before Treatment") +
-  geom_errorbar(data = mom_baseline_osmol_CI, aes(x = Hydration_Trmt,
-                               y = emmean, 
-                               ymin = lower.CL, 
-                               ymax = upper.CL,
-                               width = .3),
-                color = "black") +
-   theme(text = element_text(color = "black",
-                            size = 22),
-        axis.text = element_text(color = "black", 
-                                 size = 16),
-        legend.text = element_text(color = "black",
-                                 size = 22),
-        plot.title = element_text(color = "black",
-                                  size = 22),
-        legend.text.align = 0,
-        legend.position = "right") + 
-  scale_y_continuous(limits = c(270, 382), breaks = seq(270, 382, by = 20)) -> baseline_osmol_mothers_tmrmt_fig
-
-ggsave("Mother Baseline Osmolality by Treatment.png", 
-       plot = baseline_osmol_mothers_tmrmt_fig,
-       width = 4,
-       height = 4)
-```
-
-##?Initial Models  (Experimental)
-Is there a difference in osmolarity between the treatment group and the control group the day after capture? 
-```{r}
-DAC_osmol <- mother_data_all_final_8 %>%
-  dplyr::filter(Preg_Stage == "DAC")
-
-DAC_osmol_lm <- lm(Plasma_Osmol_Rep_mean ~ Hydration_Trmt, data = DAC_osmol)
-
-summary(DAC_osmol_lm)
-anova(DAC_osmol_lm)
-
-#Result: On average, the hydration treatment had higher baseline levels of osmolarity compared to the control group (estimate = 25.03, SE = 5.41, F(1,27) = 21.38, p < 0.0001).
-mother_data_all_final_8 %>%
-  dplyr::filter(Preg_Stage == "DAC") %>%
-  ggplot(aes(x = Hydration_Trmt, y = Plasma_Osmol_Rep_mean, fill = Hydration_Trmt)) +
-  geom_boxplot() +
-  theme_classic() +
-  labs(x = "Hydration Treatment", y = "Plasma Osmolarity")
-```
-####?Post Treatment Osmolality
-```{r}
-not_dac_or_1wab <- mother_data_all_final_8 %>%
-  filter(Preg_Stage != "DAC") %>%
-  filter(Preg_Stage != "1WAB") %>%
-  filter(Preg_Stage != "2WAC")
-
-df_1wac <- mother_data_all_final_8 %>%
-  filter(Preg_Stage == "1WAC")
-
-df_dab <- mother_data_all_final_8 %>%
-  filter(Preg_Stage == "DAB")
-
-dab_no_dac <- df_dab[c(9, 10, 11, 13, 14, 15, 16, 17, 18), ]
-
-osmolality_post_tmt_df <- full_join(df_1wac, dab_no_dac)
-```
-
-#SAVANNAH: OLD POST TREATMENT OSMOL MODEL
+## No Final Model
 
 ****Remember that birthing effecting osmolality, so we created two separate models for the snakes that gave birth and those that didn't. See both below. 
 
-post treatment linear model to see the effect of treatment on osmolality. This has one measurement per individual. For most individuals it is their one week after capture measuremeant. If the snake gave birth prior to that one week timeframe, this is their post birth osmolality.
-```{r}
-post_tmt_osmol_lm <- lm(data = osmolality_post_tmt_df, Plasma_Osmol_Rep_mean ~ Hydration_Trmt)
-
-summary(post_tmt_osmol_lm)
-anova(post_tmt_osmol_lm)
-```
-
-
-
-```{r}
-#getting CI
-CI_mothers_osmol <- data.frame(emmeans(post_tmt_osmol_lm, "Hydration_Trmt"))
-
-#CI_mothers_osmol <- data.frame(pairs(emmeans(post_tmt_osmol_lm, "Hydration_Trmt")))
-```
-
-#####Pub Fig (all snakes)
-```{r}
-post_tmt_osmol_lm %>%
-ggplot() +
-  geom_jitter(aes(x = Hydration_Trmt, 
-                 y = Plasma_Osmol_Rep_mean, 
-                 color = Hydration_Trmt),
-             size = 2,
-             alpha = 0.5,
-             show.legend = TRUE) +
-  geom_point(data = CI_mothers_osmol, 
-             aes(x = Hydration_Trmt, 
-                 y = emmean),
-             color = "black", 
-             size = 3) +
-  theme_classic() +
-  annotate(geom = "text", x = 1.5, y = 370, label = "p = 0.054", 
-           size = 5) +
-  scale_color_manual(values = c("C" = "orange2", "W" = "dodgerblue")) +
-  labs(x = "", y = "", color = "", title = "After Treatment") +
-  geom_errorbar(data = CI_mothers_osmol, aes(x = Hydration_Trmt,
-                               y = emmean, 
-                               ymin = lower.CL, 
-                               ymax = upper.CL,
-                               width = .3),
-                color = "black") +
-  theme(text = element_text(color = "black",
-                            size = 22),
-        axis.text = element_text(color = "black", 
-                                 size = 16),
-        legend.text = element_text(color = "black",
-                                 size = 22),
-        plot.title = element_text(color = "black",
-                                  size = 22),
-        legend.text.align = 0,
-        legend.position = "right") +
-  scale_y_continuous(limits = c(270, 382), breaks = seq(270, 382, by = 20)) -> mother_osmol_posttmt_fig
-```
 
 
 
@@ -1278,26 +835,57 @@ dacdab <- mother_data_all_final_full %>%
 
 # both comparisons
 tmt_befaft <- rbind(dacdab, dacwac) %>% 
-  mutate(Preg_Stage = factor(Preg_Stage,
-                       labels = c("Before", "After", "After"))) 
-
-# changes in vars
-deltas <- tmt_befaft %>%
-  arrange(Indiv_ID, CEWL_Blood_Collect_Date) %>% 
-  group_by(Indiv_ID) %>%
-  mutate(
-    delta_mass = lag(Mass_g) - Mass_g,
-    delta_osml = lag(Plasma_Osmol_Rep_mean) - Plasma_Osmol_Rep_mean,
-    delta_CEWL = lag(CEWL_g_m2h) - CEWL_g_m2h
-  ) %>%
-  filter(complete.cases(delta_mass))
+  mutate(Preg_Stage = factor(Preg_Stage),
+         tmt_timing = factor(case_when(Preg_Stage == "DAC" ~ "Before",
+                                Preg_Stage == "DAB" ~ "After",
+                                Preg_Stage == "1WAC" ~ "After"),
+                             levels = c("Before", "After")))
+summary(tmt_befaft)
 
 # check all individuals have 2 values
 tmt_befaft %>% 
   group_by(Indiv_ID) %>% 
   count()
+```
 
-summary(tmt_befaft)
+
+```{r}
+# changes in vars
+deltas_raw <- tmt_befaft %>%
+  arrange(Indiv_ID, CEWL_Blood_Collect_Date) %>% 
+  group_by(Indiv_ID) %>%
+  mutate(
+    delta_mass = Mass_g - lag(Mass_g),
+    delta_osml = Plasma_Osmol_Rep_mean - lag(Plasma_Osmol_Rep_mean),
+    delta_CEWL = CEWL_g_m2h - lag(CEWL_g_m2h)
+  ) 
+
+deltas_befaft <- deltas_raw %>% 
+  ungroup() %>% 
+  mutate(
+    delta_mass = case_when(is.na(delta_mass) ~ 0, TRUE ~ delta_mass),
+    delta_osml = case_when(is.na(delta_osml) ~ 0, TRUE ~ delta_osml),
+    delta_CEWL = case_when(is.na(delta_CEWL) ~ 0, TRUE ~ delta_CEWL)
+  )
+
+deltas <- deltas_raw %>%
+  filter(complete.cases(delta_mass))
+
+summary(deltas)
+```
+
+
+
+
+only use mass for the snakes that did not give birth in the first week of the experiment:
+
+```{r}
+deltas_mass_only <- deltas %>% 
+  filter(Preg_Stage == "1WAC")
+deltas_befaft_mass_only <- deltas_befaft %>% 
+  filter(Indiv_ID %in% deltas_mass_only$Indiv_ID)
+tmt_befaft_mass_only <- tmt_befaft %>% 
+  filter(Indiv_ID %in% deltas_mass_only$Indiv_ID)
 ```
 
 
@@ -1305,176 +893,43 @@ summary(tmt_befaft)
 
 ## MASS 
 
-*left off here! need to go through the rest of the rmd, which I think all corresponds to fig1. Then, I can connect the baseline/tmt models to where they are presented in the ms. then, I can delete the rest of the stuff in this doc.*
-
-```{r}
-new_mass_lm <- lme4::lmer(data = tmt_befaft, 
-                Mass_g ~ Preg_Stage * Hydration_Trmt + (1|Indiv_ID))
-
-Means1 <- emmeans(new_mass_lm, pairwise ~ Preg_Stage | Hydration_Trmt)
-Means1$emmean
-Means1$contrasts
-
-Means2 <- emmeans(new_mass_lm, pairwise ~ Hydration_Trmt | Preg_Stage)
-Means2$emmean
-Means2$contrasts
-
-new_mass_lm_CI <- data.frame(emmeans(new_mass_lm, pairwise ~ Hydration_Trmt | Preg_Stage)$emmean)
-
-new_mass_lm_CI <- new_mass_lm_CI %>% 
-  mutate(Preg_Stage = str_replace_all(Preg_Stage, "DAC", "Before Treatment")) %>%
-  mutate(Preg_Stage = str_replace_all(Preg_Stage, "1WAC", "After Treatment"))
-```
-
-
-Making a new column for the change in mass
-```{r}
-
-```
-T-test to see if the change in mass is significantly different from 0. T-test on the mean change in mass, so only one observation per indiv. Don't need a paired t-test. 
-```{r}
-t.test(dac_or_1wac$delta_mass)
-#Result: There was no change in mass altogether. 
-```
-Now seeing if the change in mass is significantly different between treatments 
-```{r}
-mass_lm <- lm(data = dac_or_1wac, 
-   delta_mass ~ Hydration_Trmt)
-
-summary(mass_lm)
-anova(mass_lm)
-
-#The change in mass was significantly different for the two treatment groups (estimate = 37.060, SE = 6.43, F(1, 18) = 33.13, p = <0.0001)
-```
-Creating a df with only W treatment and only C treatment 
-```{r}
-dac_or_1wac_hyd <- dac_or_1wac %>%
-  filter(Hydration_Trmt == "W")
-
-dac_or_1wac_control <- dac_or_1wac %>%
-  filter(Hydration_Trmt == "C")
-```
-
-T-test to see if the change in mass is significantly different from 0 for hydration group.
-```{r}
-t.test(dac_or_1wac_hyd$delta_mass)
-#For the hydration treatment, mass significantly increased after treatment (t = 3.72, df = 9, p = 0.0048)
-```
-T-test to see if the change in mass is significantly different from 0 for control group.
-```{r}
-t.test(dac_or_1wac_control$delta_mass)
-#For the control treatment, mass significantly decreased after treatment (t = -4.74, df = 9, p = 0.0011)
-```
-Change in mass is significantly different for the two treatment groups. WHoo!
-CI
-```{r}
-mass_lm_CI <- data.frame(emmeans(mass_lm, "Hydration_Trmt"))
-```
-
-Figure
-```{r}
-ggplot() +
-  geom_jitter(data = dac_or_1wac, 
-             aes(x = Hydration_Trmt, 
-                 y = delta_mass, 
-                 color = Hydration_Trmt),
-             size = 2,
-             alpha = 0.5) +
-  geom_point(data = mass_lm_CI, 
-             aes(x = Hydration_Trmt, 
-                 y = emmean),
-             color = "black", 
-             size = 2) +
-  theme_classic() +
-  annotate(geom = "text", x = 1, y = 30, label = "p < 0.0001", 
-           size = 5) +
-  scale_color_manual(values = c("C" = "orange2", "W" = "royalblue4")) +
-  labs(x = "", y = "Change in Mass (g)", colour = "Hydration Treatment") +
-  geom_errorbar(data = mass_lm_CI, aes(x = Hydration_Trmt,
-                               y = emmean, 
-                               ymin = lower.CL, 
-                               ymax = upper.CL,
-                               width = .3),
-                color = "black") +
-  geom_hline(yintercept = 0, linetype = 'dashed', col = 'grey') +
-  theme(text = element_text(color = "black", 
-                            size = 22),
-        axis.text = element_text(color = "black", 
-                                 size = 16)) +
-  scale_y_continuous(limits = c(-45, 60),
-                  breaks = c(-45, -30, -15, 0, 15, 30, 45, 60)) -> change_mass_tmt_mothers
-```
-
-```{r}
-dac_or_1wac_temp[ , 5] <- factor(dac_or_1wac_temp$Preg_Stage, levels = c("DAC", "1WAC"), labels = c("Before Treatment", "After Treatment"))
-```
-
-```{r}
-dac_or_1wac <- dac_or_1wac %>%
-  mutate(mass_relative = 0)
-```
-
-```{r}
-dac_or_1wac[ , 5] <- factor(dac_or_1wac$Preg_Stage, levels = c("DAC", "1WAC"), labels = c("Before Treatment", "After Treatment"))
-```
-
-```{r}
-mass_df <- full_join(dac_or_1wac_temp, dac_or_1wac)
-
-as.numeric(mass_df$delta_mass)
-
-mass_df[ ,26] <- replace(mass_df$delta_mass,is.na(mass_df$delta_mass), 0)
-```
 
 
 ```{r}
-  ggplot(data = mass_df, 
-         aes(x = Preg_Stage, 
-           y = delta_mass, 
-           colour = Hydration_Trmt)) +
-  geom_point(data = mass_df,
-             aes(x = Preg_Stage, 
-                 y = delta_mass, 
-                 colour = Hydration_Trmt),
-                 size = 2,
-                alpha = 0.5) +
-  theme_classic() +
-  geom_hline(yintercept = 0, linetype = 'dashed', col = 'grey')+
-  geom_line(aes(group = Indiv_ID)) +
-  annotate(geom = "text", x = 1, y = 30, label = "p = 0.0048", 
-           size = 5, color = "royalblue4") +
-  annotate(geom = "text", x = 1, y = -30, label = "p = 0.0011", 
-           size = 5, color = "orange2") +
-  scale_color_manual(values = c("C" = "orange2", "W" = "royalblue4")) +
-  labs(x = "", y = "Change in Mass (g)", colour = "Hydration Treatment") +
-  theme(text = element_text(color = "black",
-                            size = 22),
-        axis.text = element_text(color = "black", 
-                                 size = 16),
-        legend.text = element_text(color = "black",
-                                 size = 22),
-        plot.title = element_text(color = "black",
-                                  size = 22),
-        legend.text.align = 0,
-        legend.position = "right") +
-  scale_y_continuous(limits = c(-45, 60),
-                  breaks = c(-45, -30, -15, 0, 15, 30, 45, 60)) -> change_mass_indiv
+mass_lm_time_tmt <- lmerTest::lmer(data = tmt_befaft_mass_only, 
+            Mass_g ~ tmt_timing * Hydration_Trmt + (1|Indiv_ID))
+
+mass_means_time <- emmeans(mass_lm_time_tmt, 
+                       pairwise ~ tmt_timing | Hydration_Trmt)
+mass_means_time$contrasts
+
+mass_means_tmt <- emmeans(mass_lm_time_tmt, 
+                       pairwise ~ Hydration_Trmt | tmt_timing)
+mass_means_tmt$contrasts
+
+mass_means <- emmeans(mass_lm_time_tmt, "Hydration_Trmt", by = "tmt_timing")
+mass_lm_time_tmt_CI <- tidy(confint(mass_means))
+#mass_lm_time_tmt_CI <- tidy(mass_means_time$emmeans) # either would work
+
+anova(mass_lm_time_tmt)
 ```
+
+
+
+
+## MASS CHANGE
 
 ```{r}
-ggarrange(change_mass_tmt_mothers,
-           change_mass_indiv,
-          ncol = 1, nrow = 2,
-          labels = c("A", "B"),
-          common.legend = TRUE,
-          legend = "bottom"
-          ) -> mothers_change_mass
+delta_mass_lm <- lm(data = deltas_mass_only, delta_mass ~ Hydration_Trmt)
 
-ggsave("mothers change in mass.png", 
-       plot = mothers_change_mass, 
-       width = 6, 
-       height = 12)
+summary(delta_mass_lm)
+anova(delta_mass_lm)
+emmeans(delta_mass_lm, pairwise ~ Hydration_Trmt)
 ```
+
+
+
+
 
 
 
@@ -1490,83 +945,42 @@ ggsave("mothers change in mass.png",
 
 
 ```{r}
-osmol_lm_time_tmt <- lme4::lmer(data = tmt_befaft, 
-    Plasma_Osmol_Rep_mean ~ Hydration_Trmt * Preg_Stage2 + (1|Indiv_ID))
+osml_lm_time_tmt <- lmerTest::lmer(data = tmt_befaft, 
+    Plasma_Osmol_Rep_mean ~ tmt_timing * Hydration_Trmt + (1|Indiv_ID))
 
-Means3 <- emmeans(osmol_lm_time_tmt, pairwise ~ Preg_Stage2 | Hydration_Trmt)
-Means3$emmean
-Means3$contrasts
+osml_means_time <- emmeans(osml_lm_time_tmt, 
+                       pairwise ~ tmt_timing | Hydration_Trmt)
+osml_means_time$contrasts
 
-Means4 <- emmeans(osmol_lm_time_tmt, pairwise ~ Hydration_Trmt | Preg_Stage2)
-Means4$emmean
-Means4$contrasts
+osml_means_tmt <- emmeans(osml_lm_time_tmt, 
+                       pairwise ~ Hydration_Trmt | tmt_timing)
+osml_means_tmt$contrasts
 
+osml_means <- emmeans(osml_lm_time_tmt, "Hydration_Trmt", by = "tmt_timing")
+osml_lm_time_tmt_CI <- tidy(confint(osml_means))
 
-osmol_lm_time_tmt_CI <- data.frame(emmeans(osmol_lm_time_tmt, pairwise ~ Hydration_Trmt | Preg_Stage2)$emmean)
-
-tmt_contrasts <- data.frame(emmeans(osmol_lm_time_tmt, pairwise ~ Hydration_Trmt | Preg_Stage2)$contrasts)
-
-pregstage_contrasts <- data.frame(emmeans(osmol_lm_time_tmt, pairwise ~ Preg_Stage2 | Hydration_Trmt)$contrasts)
-#is it different between the two time points? 
-
-
-summary(osmol_lm_time_tmt)
-anova(osmol_lm_time_tmt)
+anova(osml_lm_time_tmt)
 ```
 
 
+
+
+
+
+## OSMOL CHANGE
 
 ```{r}
-ggplot() +
-  geom_jitter(data = osmol_2, 
-             aes(x = Preg_Stage2, 
-                 y = Plasma_Osmol_Rep_mean, 
-                 color = Hydration_Trmt),
-             size = 2,
-             alpha = 0.5,
-             show.legend = TRUE,
-             position = position_jitter(height = 0, width = 0.3)) +
-  theme_classic() +
-#  annotate(geom = "text", x = 1, y = 370, label = "p < 0.0001", 
-      #     size = 5) +
-  scale_color_manual(values = c("C" = "orange2", "W" = "royalblue4")) +
-  labs(x = "", y = "Plasma Osmolality (mmol kg-1)", color = "Treatment") +
-  geom_line(data = osmol_lm_time_tmt_CI, 
-                aes(x = Preg_Stage2,
-                               y = emmean, 
-                               width = .3,
-                    group = Hydration_Trmt,
-                   # group = 1,
-                    color = Hydration_Trmt)) +
-  geom_errorbar(data = osmol_lm_time_tmt_CI, 
-                aes(x = Preg_Stage2,
-                               y = emmean, 
-                               ymin = lower.CL, 
-                               ymax = upper.CL,
-                               width = .3,
-                    color = Hydration_Trmt)) +
-  geom_point(data = osmol_lm_time_tmt_CI, 
-             aes(x = Preg_Stage2, 
-                 y = emmean,
-                 color = Hydration_Trmt), 
-             size = 3) +
-   theme(text = element_text(color = "black",
-                            size = 22),
-        axis.text = element_text(color = "black", 
-                                 size = 16),
-        legend.text = element_text(color = "black",
-                                 size = 22),
-        plot.title = element_text(color = "black",
-                                  size = 22),
-        legend.text.align = 0,
-        legend.position = "right") + 
-  scale_y_continuous(limits = c(280, 382), breaks = seq(280, 382, by = 20)) -> mother_osmolality_all_fig
+delta_osml_lm <- lm(data = deltas, delta_osml ~ Hydration_Trmt)
 
-ggsave("Mother Osmolality All.png", 
-       plot = mother_osmolality_all_fig,
-       width = 4,
-       height = 4)
+summary(delta_osml_lm)
+anova(delta_osml_lm)
+emmeans(delta_osml_lm, pairwise ~ Hydration_Trmt)
 ```
+
+
+
+
+
 
 
 
@@ -1581,442 +995,571 @@ ggsave("Mother Osmolality All.png",
 
 
 ```{r}
-cewl_lm_time_tmt <- lme4::lmer(data = tmt_befaft, 
-          CEWL_g_m2h ~ Hydration_Trmt * Preg_Stage2 + (1|Indiv_ID))
+cewl_lm_time_tmt <- lmerTest::lmer(data = tmt_befaft, 
+          CEWL_g_m2h ~ tmt_timing * Hydration_Trmt + (1|Indiv_ID))
 
+cewl_means_time <- emmeans(cewl_lm_time_tmt, 
+                       pairwise ~ tmt_timing | Hydration_Trmt)
+cewl_means_time$contrasts
 
+cewl_means_tmt <- emmeans(cewl_lm_time_tmt, 
+                       pairwise ~ Hydration_Trmt | tmt_timing)
+cewl_means_tmt$contrasts
 
-Means5 <- emmeans(cewl_lm_time_tmt, pairwise ~ Preg_Stage2 | Hydration_Trmt)
-Means5$emmean
-Means5$contrasts
+cewl_means <- emmeans(cewl_lm_time_tmt, "Hydration_Trmt", by = "tmt_timing")
+cewl_lm_time_tmt_CI <- tidy(confint(cewl_means))
+#cewl_lm_time_tmt_CI <- tidy(cewl_means_time$emmean)
 
-Means6 <- emmeans(cewl_lm_time_tmt, pairwise ~ Hydration_Trmt | Preg_Stage2)
-Means6$emmean
-Means6$contrasts
-
-
-
-summary(cewl_lm_time_tmt)
 anova(cewl_lm_time_tmt)
-
-cewl_lm_time_tmt_CI <- data.frame(emmeans(cewl_lm_time_tmt, pairwise ~ Hydration_Trmt | Preg_Stage2)$emmean)
-
-tmt_contrasts_cewl <- data.frame(emmeans(cewl_lm_time_tmt, pairwise ~ Hydration_Trmt | Preg_Stage2)$contrasts)
-
-pregstage_contrasts_cewl <- data.frame(emmeans(cewl_lm_time_tmt, pairwise ~ Preg_Stage2 | Hydration_Trmt)$contrasts)
-#is it different between the two time points? 
 ```
+
+
+
+
+
+
+## CEWL CHANGE
+
+```{r}
+delta_cewl_lm <- lm(data = deltas, delta_CEWL ~ Hydration_Trmt)
+
+summary(delta_cewl_lm)
+anova(delta_cewl_lm)
+emmeans(delta_cewl_lm, pairwise ~ Hydration_Trmt)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Figure Formatting
+
+```{r}
+my_ggplot_theme <- theme_classic() + # start with a preset theme to make things easy
+                     theme(axis.title = element_text(size = 10), # text size for axis labels
+                           axis.text = element_text(size = 8, # text size for axis values
+                                                    color = "black", # need to specifically set color
+                                                    family = "sans"), # and family
+                           legend.title = element_text(size = 8), # text size for the legend title
+                           legend.text = element_text(size = 8), # text size for legend items
+                           text = element_text(color = "black", # color for all text (except axis values)
+                                               family = "sans") # family
+                           )
+```
+
+Now, apply the theme. This sets the theme for the entire Rmd document.
+
+```{r}
+theme_set(my_ggplot_theme)
+```
+
+
+
+
+
+
+
+
+
+
+
+# PUBLICATION FIGURE 1
+
+
+## mass raw
 
 ```{r}
 ggplot() +
-  geom_jitter(data = osmol_2, 
-             aes(x = Preg_Stage2, 
-                 y = CEWL_g_m2h, 
-                 color = Hydration_Trmt),
-             size = 2,
-             alpha = 0.5,
-             show.legend = TRUE,
-             position = position_jitter(height = 0, width = 0.3)) +
-  theme_classic() +
-#  annotate(geom = "text", x = 1, y = 370, label = "p < 0.0001", 
-      #     size = 5) +
-  scale_color_manual(values = c("C" = "orange2", "W" = "royalblue4")) +
-  labs(x = "", y = "CEWL (g m2h-1)", color = "Treatment") +
-  geom_line(data = cewl_lm_time_tmt_CI, 
-                aes(x = Preg_Stage2,
-                               y = emmean, 
-                               width = .3,
-                    group = Hydration_Trmt,
-                   # group = 1,
-                    color = Hydration_Trmt)) +
-  geom_errorbar(data = cewl_lm_time_tmt_CI, 
-                aes(x = Preg_Stage2,
-                               y = emmean, 
-                               ymin = lower.CL, 
-                               ymax = upper.CL,
-                               width = .3,
-                    color = Hydration_Trmt)) +
-  geom_point(data = cewl_lm_time_tmt_CI, 
-             aes(x = Preg_Stage2, 
-                 y = emmean,
-                 color = Hydration_Trmt), 
-             size = 3) +
-   theme(text = element_text(color = "black",
-                            size = 22),
-        axis.text = element_text(color = "black", 
-                                 size = 16),
-        legend.text = element_text(color = "black",
-                                 size = 22),
-        plot.title = element_text(color = "black",
-                                  size = 22),
-        legend.text.align = 0,
-        legend.position = "right")  -> mother_cewl_all
- # scale_y_continuous(limits = c(280, 382), breaks = seq(280, 382, by = 20)) -> mother_osmolality_all_fig
-```
-
-```{r}
-ggarrange(mother_osmolality_all_fig,
-           mother_cewl_all,
-          ncol = 1, nrow = 2,
-          labels = c("A", "B"),
-          common.legend = TRUE,
-          legend = "bottom"
-          ) -> mothers_osmol_cewl_all
-
-ggsave("mothers change in cewl and osmol.png", 
-       plot = mothers_osmol_cewl_all, 
-       width = 6, 
-       height = 12)
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#*PUBLICATION FIGURES
-##*FIGURE 1
-###osmol raw fig
-```{r}
-ggplot() +
-  geom_jitter(data = osmol_2, 
-             aes(x = Preg_Stage2, 
-                 y = Plasma_Osmol_Rep_mean, 
-                 color = Hydration_Trmt,
-                 shape = Hydration_Trmt),
-             size = 2.5,
-             alpha = 0.5,
-             show.legend = TRUE,
-             position = position_jitter(height = 0, width = 0.3)) +
-  theme_classic() +
- annotate(geom = "text", x = 1, y = 370, label = "*", 
-           size = 10) +
- annotate(geom = "text", x = 2, y = 370, label = "*", 
-           size = 10) +
- annotate(geom = "text", x = 2.5, y = 328, label = "*", 
-           size = 10, color = "orange2") +
- annotate(geom = "text", x = 2.5, y = 316, label = "*", 
-           size = 10, color = "royalblue4") +
-  scale_color_manual(values = c("orange2", "royalblue4"), labels = c("C" = "Control", "W" = "Hydration Treatment"), name = NULL) +
-  scale_shape_manual(values = c(15, 17), name = NULL, labels = c("C" = "Control", "W" = "Hydration Treatment")) +
-  labs(x = "", y = "Plasma Osmolality (mmol kg-1)", color = "Treatment") +
-  geom_line(data = osmol_lm_time_tmt_CI,
-                aes(x = Preg_Stage2,
-                               y = emmean, 
-                               width = .3,
-                    group = Hydration_Trmt,
-                   # group = 1,
-                    color = Hydration_Trmt)) +
-  geom_errorbar(data = osmol_lm_time_tmt_CI, 
-                aes(x = Preg_Stage2,
-                               y = emmean, 
-                               ymin = lower.CL, 
-                               ymax = upper.CL,
-                               width = .3,
-                    color = Hydration_Trmt)) +
-  geom_point(data = osmol_lm_time_tmt_CI, 
-             aes(x = Preg_Stage2, 
-                 y = emmean,
-                 color = Hydration_Trmt,
-                 shape = Hydration_Trmt), 
-             size = 4) +
-   theme(text = element_text(color = "black",
-                            size = 22),
-        axis.text = element_text(color = "black", 
-                                 size = 16),
-        legend.text = element_text(color = "black",
-                                 size = 22),
-        plot.title = element_text(color = "black",
-                                  size = 22),
-        legend.text.align = 0,
-        legend.position = "right") + 
-  scale_y_continuous(limits = c(280, 382), breaks = seq(280, 382, by = 20))-> mother_osmolality_all_fig_pub
-```
-###cewl raw fig
-```{r}
-ggplot() +
-  geom_jitter(data = osmol_2, 
-             aes(x = Preg_Stage2, 
-                 y = CEWL_g_m2h, 
-                 color = Hydration_Trmt,
-                 shape = Hydration_Trmt),
-             size = 2.5,
-             alpha = 0.5,
-             show.legend = TRUE,
-             position = position_jitter(height = 0, width = 0.3)) +
-  theme_classic() +
-  annotate(geom = "text", x = 2.5, y = 16, label = "//", 
-           size = 7) +
-  annotate(geom = "text", x = 1, y = 28, label = "NS", 
-           size = 4) +
-  annotate(geom = "text", x = 2, y = 28, label = "NS", 
-           size = 4) +
-   scale_color_manual(values = c("orange2", "royalblue4"), labels = c("C" = "Control", "W" = "Hydration Treatment"), name = NULL) +
-  scale_shape_manual(values = c(15, 17), name = NULL, labels = c("C" = "Control", "W" = "Hydration Treatment")) +
-  labs(x = "", y = "CEWL (g m2h-1)", color = "Treatment") +
-  geom_line(data = cewl_lm_time_tmt_CI, 
-                aes(x = Preg_Stage2,
-                               y = emmean, 
-                               width = .3,
-                    group = Hydration_Trmt,
-                   # group = 1,
-                    color = Hydration_Trmt)) +
-  geom_errorbar(data = cewl_lm_time_tmt_CI, 
-                aes(x = Preg_Stage2,
-                               y = emmean, 
-                               ymin = lower.CL, 
-                               ymax = upper.CL,
-                               width = .3,
-                    color = Hydration_Trmt)) +
-  geom_point(data = cewl_lm_time_tmt_CI, 
-             aes(x = Preg_Stage2, 
-                 y = emmean,
-                 color = Hydration_Trmt,
-                 shape = Hydration_Trmt), 
-             size = 4) +
-   theme(text = element_text(color = "black",
-                            size = 22),
-        axis.text = element_text(color = "black", 
-                                 size = 16),
-        legend.text = element_text(color = "black",
-                                 size = 22),
-        plot.title = element_text(color = "black",
-                                  size = 22),
-        legend.text.align = 0,
-        legend.position = "right")  -> mother_cewl_all_pub
- # scale_y_continuous(limits = c(280, 382), breaks = seq(280, 382, by = 20)) -> 
-```
-###change in mass fig
-```{r}
-  ggplot(data = mass_df, 
-         aes(x = Preg_Stage, 
-           y = delta_mass, 
-           colour = Hydration_Trmt,
-           shape = Hydration_Trmt)) +
-  geom_point(data = mass_df,
-             aes(x = Preg_Stage, 
-                 y = delta_mass, 
-                 colour = Hydration_Trmt),
-                 size = 2.5,
-                alpha = .5) +
-  theme_classic() +
-  annotate(geom = "text", x = 2.5, y = 30, label = "*", 
-           size = 10, color = "royalblue4") +
-  annotate(geom = "text", x = 2.5, y = -30, label = "*", 
-           size = 10, color = "orange2") +
-  geom_hline(yintercept = 0, linetype = 'dashed', col = 'grey')+
-  geom_line(aes(group = Indiv_ID), alpha = 0.5) +
-  annotate(geom = "text", x = 2, y = 60, label = "*", 
-           size = 10) +
- # annotate(geom = "text", x = 1, y = -30, label = "p = 0.0011", 
-   #        size = 5, color = "orange2") +
-  scale_color_manual(values = c("orange2", "royalblue4"), labels = c("C" = "Control", "W" = "Hydration Treatment"), name = NULL) +
-  scale_shape_manual(values = c(15, 17), name = NULL, labels = c("C" = "Control", "W" = "Hydration Treatment")) +
-  labs(x = "", y = "Change in Mass (g)", colour = "Hydration Treatment") +
-  theme(text = element_text(color = "black",
-                            size = 22),
-        axis.text = element_text(color = "black", 
-                                 size = 16),
-        legend.text = element_text(color = "black",
-                                 size = 22),
-        plot.title = element_text(color = "black",
-                                  size = 22),
-        legend.text.align = 0,
-        legend.position = "right") +
-  scale_y_continuous(limits = c(-45, 60),
-                  breaks = c(-45, -30, -15, 0, 15, 30, 45, 60)) -> change_mass_indiv_pub
-```
-###mass raw fig
-```{r}
-ggplot() +
-  geom_jitter(data = dac_or_1wac_temp, 
-             aes(x = Preg_Stage, 
-                 y = Mass_g, 
-                 color = Hydration_Trmt,
-                 shape = Hydration_Trmt),
-             size = 2.5,
-             alpha = 0.5,
-             show.legend = TRUE,
-             position = position_jitter(height = 0, width = 0.3)) +
-  theme_classic() +
-annotate(geom = "text", x = 2.5, y = 455, label = "*", 
-           size = 10, color = "orange2") +
- annotate(geom = "text", x = 2.5, y = 490, label = "*", 
-           size = 10, color = "royalblue4") +
- annotate(geom = "text", x = 2, y = 730, label = "*", 
-           size = 10) +
- annotate(geom = "text", x = 1, y = 740, label = "NS", 
-           size = 4) +
-  scale_color_manual(values = c("orange2", "royalblue4"), labels = c("C" = "Control", "W" = "Hydration Treatment"), name = NULL) +
-  scale_shape_manual(values = c(15, 17), name = NULL, labels = c("C" = "Control", "W" = "Hydration Treatment")) +
-  labs(x = "", y = "Mass (g)", color = "Treatment") +
-  geom_line(data = new_mass_lm_CI,
-                aes(x = Preg_Stage,
-                               y = emmean, 
-                               width = .3,
-                    group = Hydration_Trmt,
-                   # group = 1,
-                    color = Hydration_Trmt)) +
-  geom_errorbar(data = new_mass_lm_CI, 
-                aes(x = Preg_Stage,
-                               y = emmean, 
-                               ymin = lower.CL, 
-                               ymax = upper.CL,
-                               width = .3,
-                    color = Hydration_Trmt)) +
-  geom_point(data = new_mass_lm_CI, 
-             aes(x = Preg_Stage, 
-                 y = emmean,
-                 color = Hydration_Trmt,
-                 shape = Hydration_Trmt), 
-             size = 4) +
-   theme(text = element_text(color = "black",
-                            size = 22),
-        axis.text = element_text(color = "black", 
-                                 size = 16),
-        legend.text = element_text(color = "black",
-                                 size = 22),
-        plot.title = element_text(color = "black",
-                                  size = 22),
-        legend.text.align = 0,
-        legend.position = "right") +
-  scale_y_continuous(limits = c(280, 800), 
-                     breaks = seq(280, 800, by = 100)) -> mother_mass_all_fig_pub
-```
-
-###change in osmol fig
-```{r}
-  ggplot(data = osmol_2, 
-         aes(x = Preg_Stage2, 
-           y = Change_in_osmol, 
-           colour = Hydration_Trmt,
-           shape = Hydration_Trmt)) +
-  geom_point(data = osmol_2,
-             aes(x = Preg_Stage2, 
-                 y = Change_in_osmol, 
-                 colour = Hydration_Trmt),
-                 size = 2.5,
-                alpha = .5) +
-  theme_classic() +
-  annotate(geom = "text", x = 2.5, y = 20, label = "*", 
-          size = 10, color = "orange2") +
-  annotate(geom = "text", x = 2.5, y = -30, label = "*", 
-          size = 10, color = "royalblue4") +
-  annotate(geom = "text", x = 2, y = 45, label = "*", 
-          size = 10) +
-  geom_hline(yintercept = 0, linetype = 'dashed', col = 'grey')+
-  geom_line(aes(group = Indiv_ID), alpha = 0.5) +
-  scale_color_manual(values = c("orange2", "royalblue4"), labels = c("C" = "Control", "W" = "Hydration Treatment"), name = NULL) +
-  scale_shape_manual(values = c(15, 17), name = NULL, labels = c("C" = "Control", "W" = "Hydration Treatment")) +
-  labs(x = "", y = "Change in Osmolality (mmol kg-1)", colour = "Hydration Treatment") +
-  theme(text = element_text(color = "black",
-                            size = 22),
-        axis.text = element_text(color = "black", 
-                                 size = 16),
-        legend.text = element_text(color = "black",
-                                 size = 22),
-        plot.title = element_text(color = "black",
-                                  size = 22),
-        legend.text.align = 0,
-        legend.position = "right") +
-  scale_y_continuous(limits = c(-55, 45),
-                  breaks = c(-60, -45, -30, -15, 0, 15, 30, 45)) -> change_osmol_indiv_pub
-```
-###change in cewl fig
-```{r}
-  ggplot(data = osmol_2, 
-         aes(x = Preg_Stage2, 
-           y = Change_in_CEWL, 
-           colour = Hydration_Trmt,
-           shape = Hydration_Trmt)) +
-  geom_point(data = osmol_2,
-             aes(x = Preg_Stage2, 
-                 y = Change_in_CEWL, 
-                 colour = Hydration_Trmt),
-                 size = 2.5,
-                alpha = .5) +
-  theme_classic() +
- annotate(geom = "text", x = 2.5, y = -5, label = "//", 
-          size = 7) +
-annotate(geom = "text", x = 2, y = 10, label = "NS", 
-          size = 4) +
-  #annotate(geom = "text", x = 2, y = 45, label = "*", 
-         # size = 8) +
-  geom_hline(yintercept = 0, linetype = 'dashed', col = 'grey')+
-  geom_line(aes(group = Indiv_ID), alpha = 0.5) +
-  scale_color_manual(values = c("orange2", "royalblue4"), labels = c("C" = "Control", "W" = "Hydration Treatment"), name = NULL) +
-  scale_shape_manual(values = c(15, 17), name = NULL, labels = c("C" = "Control", "W" = "Hydration Treatment")) +
-  labs(x = "", y = "Change in CEWL (g m2h-1)", colour = "Hydration Treatment") +
-  theme(text = element_text(color = "black",
-                            size = 22),
-        axis.text = element_text(color = "black", 
-                                 size = 16),
-        legend.text = element_text(color = "black",
-                                 size = 22),
-        plot.title = element_text(color = "black",
-                                  size = 22),
-        legend.text.align = 0,
-        legend.position = "right") +
- scale_y_continuous(limits = c(-16, 10),
-                 breaks = c(-15, -10, -5, 0, 5, 10)) -> change_cewl_indiv_pub
+  geom_point(
+    data = tmt_befaft_mass_only,
+    aes(
+    x = tmt_timing,
+    y = Mass_g,
+    color = Hydration_Trmt,
+    shape = Hydration_Trmt
+  ),
+    size = 1.1, 
+    alpha = 0.5, 
+    position = position_jitterdodge(jitter.width = 0.6, dodge.width = 0.6)
+  ) +
+  geom_line(
+    data = mass_lm_time_tmt_CI,
+    aes(
+      x = tmt_timing, y = estimate, 
+      group = Hydration_Trmt, 
+      color = Hydration_Trmt
+    ),
+    position = position_dodge(width = 0.6)
+  ) +
+  geom_errorbar(
+    data = mass_lm_time_tmt_CI,
+    aes(
+      x = tmt_timing, y = estimate, 
+      ymin = conf.low, ymax = conf.high, 
+      group = Hydration_Trmt, 
+      color = Hydration_Trmt
+    ),
+    width = 0.4,
+    position = position_dodge(width = 0.6)
+  ) +
+  geom_point(
+    data = mass_lm_time_tmt_CI,
+    aes(
+      x = tmt_timing, y = estimate, 
+      group = Hydration_Trmt, 
+      color = Hydration_Trmt,
+      shape = Hydration_Trmt
+    ),
+    size = 2.5,
+    position = position_dodge(width = 0.6)
+  ) + 
   
+  # prettys 
+  scale_color_manual(
+    values = c("darkgoldenrod2", "royalblue4"), 
+    labels = c("C" = "Control", "W" = "Hydration"), 
+    name = NULL
+  ) +
+  scale_shape_manual(
+    values = c(15, 17), 
+    labels = c("C" = "Control", "W" = "Hydration"),
+    name = NULL
+  ) +
+  labs(
+    x = NULL, 
+    y = "Mass (g)", 
+    color = "Treatment"
+  ) +
+  scale_y_continuous(
+    limits = c(280, 800), 
+    breaks = seq(280, 800, by = 100)
+  ) + 
+  
+  theme(legend.position = "none") +
+  
+  # statistical labels
+  annotate(geom = "text", x = 1, y = 745, label = "NS", size = 2) +
+  annotate(geom = "text", x = 2, y = 730, label = "*", size = 6) +
+  annotate(geom = "text", x = 2.5, y = 390, label = "*", size = 6, 
+           color = "darkgoldenrod2") +
+  annotate(geom = "text", x = 2.5, y = 490, label = "*", size = 6,
+           color = "royalblue4") -> mother_mass_all # save
+
+mother_mass_all
 ```
-####arrange
-```{r}
-ggarrange(mother_osmolality_all_fig_pub,
-            change_osmol_indiv_pub,
-            mother_mass_all_fig_pub,
-          change_mass_indiv_pub,
-          mother_cewl_all_pub,
-          change_cewl_indiv_pub,
-          ncol = 2, nrow = 3,
-          labels = c("A", "B", "C", "D", "E", "F"),
-          common.legend = TRUE,
-          legend = "bottom"
-          ) -> figure_1_publication
 
-ggsave("Publication Figure 1.png", 
-       plot = figure_1_publication, 
-       width = 10, 
-       height = 18)
+
+
+
+## osmol raw
+
+```{r}
+ggplot() +
+  geom_point(
+    data = tmt_befaft,
+    aes(
+    x = tmt_timing,
+    y = Plasma_Osmol_Rep_mean,
+    color = Hydration_Trmt,
+    shape = Hydration_Trmt
+  ),
+    size = 1.1, 
+    alpha = 0.5, 
+    position = position_jitterdodge(jitter.width = 0.6, dodge.width = 0.6)
+  ) +
+  geom_line(
+    data = osml_lm_time_tmt_CI,
+    aes(
+      x = tmt_timing, y = estimate, 
+      group = Hydration_Trmt, 
+      color = Hydration_Trmt
+    ),
+    position = position_dodge(width = 0.6)
+  ) +
+  geom_errorbar(
+    data = osml_lm_time_tmt_CI,
+    aes(
+      x = tmt_timing, y = estimate, 
+      ymin = conf.low, ymax = conf.high, 
+      group = Hydration_Trmt, 
+      color = Hydration_Trmt
+    ),
+    width = 0.4,
+    position = position_dodge(width = 0.6)
+  ) +
+  geom_point(
+    data = osml_lm_time_tmt_CI,
+    aes(
+      x = tmt_timing, y = estimate, 
+      group = Hydration_Trmt, 
+      color = Hydration_Trmt,
+      shape = Hydration_Trmt
+    ),
+    size = 2.5,
+    position = position_dodge(width = 0.6)
+  ) + 
+  
+  # prettys 
+  scale_color_manual(
+    values = c("darkgoldenrod2", "royalblue4"), 
+    labels = c("C" = "Control", "W" = "Hydration"), 
+    name = NULL
+  ) +
+  scale_shape_manual(
+    values = c(15, 17), 
+    labels = c("C" = "Control", "W" = "Hydration"),
+    name = NULL
+  ) +
+  labs(
+    x = NULL, 
+    y = expression('Osmolality (mmol '*kg^-1*')'),
+    color = "Treatment"
+  ) +
+  scale_y_continuous(
+    limits = c(280, 382), 
+    breaks = seq(280, 380, by = 20)
+  ) + 
+  
+  theme(legend.position = "none") +
+  
+  # statistical labels
+  annotate(geom = "text", x = 1, y = 370, label = "*", size = 6) +
+  annotate(geom = "text", x = 2, y = 370, label = "*", size = 6) +
+  annotate(geom = "text", x = 2.5, y = 330, label = "*", size = 6, 
+           color = "darkgoldenrod2") +
+  annotate(geom = "text", x = 2.5, y = 310, label = "*", size = 6,
+           color = "royalblue4") -> mother_osmolality_all
+
+mother_osmolality_all
 ```
 
-##Fig 2
+
+
+
+
+
+
+## cewl raw
+
+```{r}
+ggplot() +
+  geom_point(
+    data = tmt_befaft,
+    aes(
+    x = tmt_timing,
+    y = CEWL_g_m2h,
+    color = Hydration_Trmt,
+    shape = Hydration_Trmt
+  ),
+    size = 1.1, 
+    alpha = 0.5, 
+    position = position_jitterdodge(jitter.width = 0.6, dodge.width = 0.6)
+  ) +
+  geom_line(
+    data = cewl_lm_time_tmt_CI,
+    aes(
+      x = tmt_timing, y = estimate, 
+      group = Hydration_Trmt, 
+      color = Hydration_Trmt
+    ),
+    position = position_dodge(width = 0.6)
+  ) +
+  geom_errorbar(
+    data = cewl_lm_time_tmt_CI,
+    aes(
+      x = tmt_timing, y = estimate, 
+      ymin = conf.low, ymax = conf.high,  
+      group = Hydration_Trmt, 
+      color = Hydration_Trmt
+    ),
+    width = 0.4,
+    position = position_dodge(width = 0.6)
+  ) +
+  geom_point(
+    data = cewl_lm_time_tmt_CI,
+    aes(
+      x = tmt_timing, y = estimate, 
+      group = Hydration_Trmt, 
+      color = Hydration_Trmt,
+      shape = Hydration_Trmt
+    ),
+    size = 2.5,
+    position = position_dodge(width = 0.6)
+  ) + 
+  
+  # prettys 
+  scale_color_manual(
+    values = c("darkgoldenrod2", "royalblue4"), 
+    labels = c("C" = "Control", "W" = "Hydration"), 
+    name = NULL
+  ) +
+  scale_shape_manual(
+    values = c(15, 17), 
+    labels = c("C" = "Control", "W" = "Hydration"),
+    name = NULL
+  ) +
+  labs(
+    x = NULL, 
+    y = expression('CEWL (g '*m^-2*' '*h^-1*')'), 
+    color = "Treatment"
+  ) +
+  scale_y_continuous(
+    limits = c(9, 31), 
+    breaks = seq(10, 30, by = 5)
+  ) + 
+  
+  theme(legend.position = "none") +
+  
+  # statistical labels
+  annotate(geom = "text", x = 1, y = 28, label = "NS", size = 2) +
+  annotate(geom = "text", x = 2, y = 28, label = "NS", size = 2) +
+  annotate(geom = "text", x = 2.5, y = 16, label = "//", size = 3) -> mother_cewl_all
+  
+mother_cewl_all
+```
+
+
+
+
+
+
+## change in mass
+
+```{r}
+ggplot(
+  data = deltas_befaft_mass_only, 
+  aes(
+    x = tmt_timing,
+    y = delta_mass,
+    group = Indiv_ID,
+    color = Hydration_Trmt,
+    shape = Hydration_Trmt
+  )) +
+  geom_hline(yintercept = 0, linetype = 'dashed', color = "darkgray") +
+  geom_point(size = 1.4, position = position_dodge(width = 0.1)) +
+  geom_line(alpha = 0.4, position = position_dodge(width = 0.1)) +
+  
+  # prettys 
+  scale_color_manual(
+    values = c("darkgoldenrod2", "royalblue4"), 
+    labels = c("C" = "Control", "W" = "Hydration"), 
+    name = NULL
+  ) +
+  scale_shape_manual(
+    values = c(15, 17), 
+    labels = c("C" = "Control", "W" = "Hydration"),
+    name = NULL
+  ) +
+  labs(
+    x = NULL, 
+    y = expression(Delta ~ 'Mass (g)'), 
+    color = "Treatment"
+  ) +
+  scale_y_continuous(
+    #limits = c(-45, 60),
+    breaks = c(-45, -30, -15, 0, 15, 30, 45, 60)
+  ) +
+  
+  theme(legend.position = "inside",
+        legend.position.inside = c(0.15, 0.15),
+        legend.background = element_blank()) +
+  
+  # labels
+  annotate(geom = "text", x = 2.3, y = 30, label = "*", size = 6, 
+           color = "royalblue4") +
+  annotate(geom = "text", x = 2.3, y = -30, label = "*", size = 6, 
+           color = "darkgoldenrod2") +
+  annotate(geom = "text", x = 2, y = 60, label = "*", 
+           size = 6) -> mother_change_mass
+mother_change_mass
+```
+
+
+
+
+
+
+
+## change in osmol
+
+```{r}
+ggplot(
+  data = deltas_befaft, 
+  aes(
+    x = tmt_timing,
+    y = delta_osml,
+    group = Indiv_ID,
+    color = Hydration_Trmt,
+    shape = Hydration_Trmt
+  )) +
+  geom_hline(yintercept = 0, linetype = 'dashed', color = "darkgray") +
+  geom_point(size = 1.4, position = position_dodge(width = 0.1)) +
+  geom_line(alpha = 0.4, position = position_dodge(width = 0.1)) +
+  
+  # prettys 
+  scale_color_manual(
+    values = c("darkgoldenrod2", "royalblue4"), 
+    labels = c("C" = "Control", "W" = "Hydration"), 
+    name = NULL
+  ) +
+  scale_shape_manual(
+    values = c(15, 17), 
+    labels = c("C" = "Control", "W" = "Hydration"),
+    name = NULL
+  ) +
+  labs(
+    x = NULL, 
+    y = expression(Delta ~ 'Osmolality (mmol '*kg^-1*')'),
+    color = "Treatment"
+  ) +
+  scale_y_continuous(
+    limits = c(-60, 45),
+    breaks = c(-60, -45, -30, -15, 0, 15, 30, 45)
+  ) +
+  
+  theme(legend.position = "inside",
+        legend.position.inside = c(0.25, 0.2),
+        legend.background = element_blank()) +
+  
+  # labels
+  annotate(geom = "text", x = 2.3, y = -30, label = "*", size = 6, 
+           color = "royalblue4") +
+  annotate(geom = "text", x = 2.3, y = 20, label = "*", size = 6, 
+           color = "darkgoldenrod2") +
+  annotate(geom = "text", x = 2, y = 45, label = "*", 
+           size = 6) -> mother_change_osml
+mother_change_osml
+```
+
+
+
+## change in cewl
+
+```{r}
+ggplot(
+  data = deltas_befaft, 
+  aes(
+    x = tmt_timing,
+    y = delta_CEWL,
+    group = Indiv_ID,
+    color = Hydration_Trmt,
+    shape = Hydration_Trmt
+  )) +
+  geom_hline(yintercept = 0, linetype = 'dashed', color = "darkgray") +
+  geom_point(size = 1.4, position = position_dodge(width = 0.1)) +
+  geom_line(alpha = 0.4, position = position_dodge(width = 0.1)) +
+  
+  # prettys 
+  scale_color_manual(
+    values = c("darkgoldenrod2", "royalblue4"), 
+    labels = c("C" = "Control", "W" = "Hydration"), 
+    name = NULL
+  ) +
+  scale_shape_manual(
+    values = c(15, 17), 
+    labels = c("C" = "Control", "W" = "Hydration"),
+    name = NULL
+  ) +
+  labs(
+    x = NULL, 
+    y = expression(Delta ~ 'CEWL (g '*m^-2*' '*h^-1*')'),
+    color = "Treatment"
+  ) +
+  scale_y_continuous(
+    limits = c(-17, 10),
+    breaks = c(-15, -10, -5, 0, 5, 10)
+  ) +
+  
+  theme(legend.position = "inside",
+        legend.position.inside = c(0.25, 0.2),
+        legend.background = element_blank()) +
+  
+  # labels
+  annotate(geom = "text", x = 2.3, y = -5, label = "//", size = 3) +
+  annotate(geom = "text", x = 2, y = 10, label = "NS", 
+           size = 2) -> mother_change_cewl
+mother_change_cewl
+```
+
+
+
+
+
+
+## arrange
 
 
 ```{r}
-ggplot(data = mother_data_all_final_8, aes(x = msmt_temp_C, y = CEWL_g_m2h)) +
+ggarrange(
+  mother_mass_all, mother_change_mass,
+  mother_osmolality_all, mother_change_osml,
+  mother_cewl_all, mother_change_cewl,
+  nrow = 3,
+  ncol = 2,
+  labels = c("A", "B", "C", "D", "E", "F"),
+  align = "hv"
+) -> mother_tmt_effects
+
+ggsave(
+  filename = "Fig1_mother_tmt_effects.pdf",
+  plot = mother_tmt_effects,
+  path = "./results_figures",
+  device = "pdf",
+  dpi = 600,
+  units = "mm",
+  width = 150,
+  height = 180
+)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+# PUB FIGURE 2
+
+
+## CEWL ~ temp
+
+mother_data_all_final_2
+```{r}
+ggplot(data = mother_data_all_final_2, aes(x = msmt_temp_C, y = CEWL_g_m2h)) +
   geom_point(size = 2, 
              alpha = 0.7,
              color = "springgreen3") +
@@ -2025,34 +1568,25 @@ ggplot(data = mother_data_all_final_8, aes(x = msmt_temp_C, y = CEWL_g_m2h)) +
            y = 10, 
            label = "p < 0.0001", 
            size = 5) +
-  theme_classic() +
   geom_smooth(aes(x = msmt_temp_C, y = CEWL_g_m2h),
               method = "lm", 
               se = TRUE, 
               show.legend = TRUE, 
-              size = 1,
               color = "black") +
-  labs(x = "Ambient Temperature (°C)", 
-       y = "CEWL (g m2h-1)") +
-  theme(text = element_text(color = "black",
-                            size = 22),
-        axis.text = element_text(color = "black", 
-                                 size = 16),
-        legend.text = element_text(color = "black",
-                                 size = 22),
-        plot.title = element_text(color = "black",
-                                  size = 22),
-        legend.text.align = 0,
-        legend.position = "right") +
-  #scale_x_continuous(breaks = c(0, 2, 4, 6, 8, 10, 12, 14, 16), limits = c(0, 16)) +
  scale_y_continuous(limits = c(9, 30.5),
-                  breaks = seq(9, 30.5, by = 3)) -> temp_v_cewl_females_pub
+                  breaks = seq(9, 30.5, by = 3))
 
 ```
 
+
+
+
+## CEWL ~ RH
+
+
 ```{r}
 
-ggplot(data = mother_data_all_final_8, aes(x = msmt_RH_percent, y = CEWL_g_m2h)) +
+ggplot(data = mother_data_all_final_2, aes(x = msmt_RH_percent, y = CEWL_g_m2h)) +
   geom_point(size = 2, 
              alpha = 0.7, 
              color = "springgreen3") +
@@ -2061,41 +1595,28 @@ ggplot(data = mother_data_all_final_8, aes(x = msmt_RH_percent, y = CEWL_g_m2h))
            y = 10, 
            label = "p < 0.0001", 
            size = 5) +
-  theme_classic() +
   geom_smooth(aes(x = msmt_RH_percent, y = CEWL_g_m2h),
               method = "lm", 
               se = TRUE, 
               show.legend = TRUE, 
-              size = 1,
               color = "black") +
   labs(x = "Ambient Humidity (%)", 
        y = "") +
-  theme(text = element_text(color = "black",
-                            size = 22),
-        axis.text = element_text(color = "black", 
-                                 size = 16),
-        legend.text = element_text(color = "black",
-                                 size = 22),
-        plot.title = element_text(color = "black",
-                                  size = 22),
-        legend.text.align = 0,
-        legend.position = "right") +
 scale_x_continuous(breaks = c(34, 36, 38, 40, 42, 44, 46, 48), limits = c(34, 48)) +
  scale_y_continuous(limits = c(9, 30.5),
-                  breaks = seq(9, 30.5, by = 3)) -> humidity_v_cewl_females_pub
-
+                  breaks = seq(9, 30.5, by = 3))
 ```
 
-```{r}
-ggarrange(temp_v_cewl_females_pub, humidity_v_cewl_females_pub,
-          ncol = 2, nrow = 1,
-          labels = c("A", "B"),
-          common.legend = TRUE,
-          legend = "bottom"
-          ) -> CEWL_v_temp_humidity_mothers_pub
 
-ggsave("CEWL vs Temp and Humidity Females.png", 
-       plot = CEWL_v_temp_humidity_mothers_pub, 
-       width = 10, 
-       height = 4)
-```
+
+
+
+
+
+
+
+
+
+
+
+
