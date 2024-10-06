@@ -1,0 +1,111 @@
+---
+title: "Neonate Analysis Colorado 2022"
+author: "Robin Bedard & Savannah Weaver"
+date: "2024-10-05"
+output: html_document
+---
+
+
+
+
+# Packages
+
+
+```{r}
+library("tidyverse") # for dplyr workflow + ggplot
+library("rmdformats") # pretty Rmd format
+library("lme4")
+library("lmerTest")
+library("emmeans")
+library("broom")
+library("AICcmodavg")
+library("ggpubr")
+```
+
+
+
+
+
+
+
+# Load & Tidy Data
+
+
+```{r}
+#reading in the file of osmolarities for all neonates
+neonate_dab_osmol <- readRDS("data/neonates/clean_Neonate_DAB_Osmolality.RDS")
+#reading in all other body measurements of neonates
+neonate_dab_all <- readRDS("data/neonates/FinalNeonateDAB.RDS")
+# robin removed this one...
+neonate_dab_all[77, ]
+# fix typo, from Robins original code
+neonate_dab_all_final[53, 4] <- 24.0 # was SVL = 2.4 cm, which was wrong
+
+#reading in CEWL data
+all_data_CEWL <- readRDS("data/neonates/CEWL_data_all_clean.RDS")
+
+neonate_postshed_clean <- readRDS("data/neonates/neonate_postshed_clean.RDS")
+neonate_dab_all
+neonate_postshed_clean
+```
+
+
+
+
+
+
+
+
+
+```{r}
+Mother_ID <- as.factor(c(124, 124, 125, 125, 128, 128, 129, 129, 131, 131, 133, 133, 134, 134, 135, 135, 101, 103, 104, 105, 112, 114, 115, 119, 126, 127))
+
+mothers_osmol <- as.numeric(c(300.75, NA, 288.99, 307.66, 305, 271.33, 314.66, 325, 310.5, NA, 329, NA, 304, NA, 301.25, 322.33, 326, 331.66, 318, 320.75, 281.66, 311.667, 357.25, 320.33, 309.25, 312.333 ))
+
+mothers_cewl <- as.numeric(c(16.96, NA, 19.90, 13.8, 24, 23.115, 24.47, 15.38, 11.68, NA, 18.797, NA, 17.83, NA, 20.595, 14.914, 20.9125, 21.12, 18.405, 13.5, 19.7375, 16.2275, 21.254, 27.82, 10.265, 22.4625))
+
+days_mom_in_tmt <- as.numeric(c(5, 10, 2, 9, 3, 10, 2, 9, 5, 10, 5, 10, 5, 10, 3, 9, 13, 15, 15, 14, 14, 14, 15, 13, 7, 9))
+
+Shed <- c("N", "Y", "N", "Y", "N", "Y", "N", "Y", "N", "Y", "N", "Y", "N", "Y", "N", "Y", "N", "N", "N", "N", "N", "N", "N", "N", "N", "N")
+
+mother_info <- data.frame(Mother_ID, mothers_osmol, mothers_cewl, days_mom_in_tmt, Shed)
+
+neonate_analysis_df <- left_join(all_clutch_averages, mother_info, by = c("Mother_ID", "Shed"))
+```
+
+Fixing an error. 128 is coded as C for one variable, should be W
+```{r}
+neonate_analysis_df[5, 2] <- "W"
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
