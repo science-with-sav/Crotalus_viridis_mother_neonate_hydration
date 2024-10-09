@@ -129,6 +129,18 @@ birth_snakes <- mother_data_all_final_full %>%
   filter(Gave_Birth == "Y") %>% 
   # Robin removes this snake, but I don't remember why
   filter(Indiv_ID != 117)
+
+birth_snakes_DAB <- birth_snakes %>% 
+  filter(Preg_Stage == "DAB") %>% 
+  select(
+    Mother_ID = Indiv_ID,
+    Mother_CEWL = CEWL_g_m2h,
+    Mother_mass = Mass_g,
+    Mother_SVL = SVL_cm,
+    Mother_osml = Plasma_Osmol_Rep_mean,
+    Mother_Days_in_Treatment = Days_in_Treatment
+  )
+write_rds(birth_snakes_DAB, "./data/mother_values.RDS")
 ```
 
 Now, a dataframe with the snakes that did not give birth.
