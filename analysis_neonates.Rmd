@@ -24,6 +24,28 @@ library("ggpubr")
 
 
 
+# Fig Theme
+
+```{r}
+my_ggplot_theme <- theme_classic() + # start with a preset theme to make things easy
+                     theme(axis.title = element_text(size = 10), # text size for axis labels
+                           axis.text = element_text(size = 8, # text size for axis values
+                                                    color = "black", # need to specifically set color
+                                                    family = "sans"), # and family
+                           legend.title = element_text(size = 8), # text size for the legend title
+                           legend.text = element_text(size = 8), # text size for legend items
+                           text = element_text(color = "black", # color for all text (except axis values)
+                                               family = "sans") # family
+                           )
+```
+
+Now, apply the theme. This sets the theme for the entire Rmd document.
+
+```{r}
+theme_set(my_ggplot_theme)
+```
+
+
 # Acronyms
 
 DAB = day after birth
@@ -122,7 +144,13 @@ all_data_CEWL0 <- readRDS("data/neonates/CEWL_data_all_clean.RDS")
 all_data_CEWL <- all_data_CEWL0 %>% 
   rename(CEWL_Blood_Collect_Date = date, Indiv_ID = individual_ID) %>% 
   # calculate VPD
-  mutate(VPD = msmt_temp_C)
+  mutate(
+    e_s_kPa = 0.611 * exp((17.502*msmt_temp_C)/(msmt_temp_C + 240.97)), # saturation VP
+    e_a_kPa = e_s_kPa*((msmt_RH_percent/100)), # actual VP
+    VPD_kPa = e_s_kPa - e_a_kPa # VP deficit
+         
+  )
+summary(all_data_CEWL)
 ```
 
 
@@ -131,7 +159,10 @@ all_data_CEWL <- all_data_CEWL0 %>%
 
 
 
-## Join Dataframes
+# Join/Arrange Dataframes
+
+
+## DAB 
 
 All DAB:
 *missing CEWL for 332*
@@ -140,21 +171,17 @@ dab_all <- neonate_dab_all %>%
   left_join(neonate_dab_osmol, 
             by = c('Indiv_ID', 'CEWL_Blood_Collect_Date')) %>% 
   left_join(all_data_CEWL, 
-            by = c('Indiv_ID', 'CEWL_Blood_Collect_Date'))
-```
-
-
-DAB neonates + mothers:
-
-###to do
-
-```{r}
-
+            by = c('Indiv_ID', 'CEWL_Blood_Collect_Date')) %>% 
+  # remove one erroneous point
+  filter(Plasma_Osmol_Rep_mean < 400)
 ```
 
 
 
 
+
+
+## PS
 
 All PS:
 
@@ -167,6 +194,7 @@ ps_all <- neonate_postshed_clean %>%
 ```
 
 
+## B vs P
 
 subset of neonates/clutches with measurements at BOTH time points:
 
@@ -185,22 +213,95 @@ summary(dab_ps_compare)
 
 
 
+# Clutch Avgs
 
+Get min/max, sd, and mean per clutch per variable. 
+
+
+## DAB Proportions
 
 ```{r}
-Mother_ID <- as.factor(c(124, 124, 125, 125, 128, 128, 129, 129, 131, 131, 133, 133, 134, 134, 135, 135, 101, 103, 104, 105, 112, 114, 115, 119, 126, 127))
+dab_all_props <- dab_all %>% 
+  #group_by(Mother_ID, Treatment, timept, Sex) %>%
+  #count() %>% 
+  group_by(Mother_ID, Treatment, timept) %>%
+  summarise(
+    n_neonates = n(), # number MEASURED, not n birthed
+    Prop_Pee = sum(Pee == "Y")/n_neonates,
+    Prop_F = sum(Sex == "F")/n_neonates
+  )
 
-mothers_osmol <- as.numeric(c(300.75, NA, 288.99, 307.66, 305, 271.33, 314.66, 325, 310.5, NA, 329, NA, 304, NA, 301.25, 322.33, 326, 331.66, 318, 320.75, 281.66, 311.667, 357.25, 320.33, 309.25, 312.333 ))
+summary(dab_all_props)
+```
 
-mothers_cewl <- as.numeric(c(16.96, NA, 19.90, 13.8, 24, 23.115, 24.47, 15.38, 11.68, NA, 18.797, NA, 17.83, NA, 20.595, 14.914, 20.9125, 21.12, 18.405, 13.5, 19.7375, 16.2275, 21.254, 27.82, 10.265, 22.4625))
 
-days_mom_in_tmt <- as.numeric(c(5, 10, 2, 9, 3, 10, 2, 9, 5, 10, 5, 10, 5, 10, 3, 9, 13, 15, 15, 14, 14, 14, 15, 13, 7, 9))
 
-Shed <- c("N", "Y", "N", "Y", "N", "Y", "N", "Y", "N", "Y", "N", "Y", "N", "Y", "N", "Y", "N", "N", "N", "N", "N", "N", "N", "N", "N", "N")
+## DAB Means
 
-mother_info <- data.frame(Mother_ID, mothers_osmol, mothers_cewl, days_mom_in_tmt, Shed)
+```{r}
+dab_all_clutch_avg <- dab_all %>% 
+  group_by(Mother_ID, Treatment, timept) %>%
+  mutate(n = n()) %>% 
+  group_by(Mother_ID, Treatment, timept, n) %>% 
+  summarise_at(
+    vars(Tail_Length_cm, SVL_cm, Mass_g, Tb_CEWL_c, 
+         Plasma_Osmol_Rep_mean, CEWL_g_m2h, 
+         msmt_temp_C, msmt_RH_percent, VPD_kPa), 
+    list(mean = mean, sd = sd, min = min, max = max),
+    na.rm = T
+  )
 
-neonate_analysis_df <- left_join(all_clutch_averages, mother_info, by = c("Mother_ID", "Shed"))
+length(unique(dab_all_clutch_avg$Mother_ID)) == nrow(dab_all_clutch_avg)
+
+summary(dab_all_clutch_avg)
+```
+
+
+## Mother Data!
+
+```{r}
+mother_values <- read_rds("./data/mother_values.RDS")
+
+dab_clutch_mom <- dab_all_clutch_avg %>% 
+  left_join(mother_values, by = "Mother_ID")
+```
+
+
+
+
+
+
+## PS Means
+
+```{r}
+ps_all_clutch_avg <- ps_all %>% 
+  group_by(Mother_ID, Treatment, timept) %>%
+  mutate(n = n()) %>% 
+  group_by(Mother_ID, Treatment, timept, n) %>% 
+  summarise_at(
+    vars(Tail_Length_cm, SVL_cm, Mass_g, Tb_CEWL_c, 
+         Plasma_Osmol_Rep_mean, CEWL_g_m2h, 
+         msmt_temp_C, msmt_RH_percent, VPD_kPa), 
+    list(mean = mean, sd = sd, min = min, max = max),
+    na.rm = T
+  )
+
+length(unique(ps_all_clutch_avg$Mother_ID)) == nrow(ps_all_clutch_avg)
+```
+
+
+## B vs P
+
+```{r}
+dab_ps_compare_means <- dab_all_clutch_avg %>% 
+  # only keep clutches with post-shed msmts
+  filter(Mother_ID %in% ps_all$Mother_ID) %>%
+  # add those post-shed data
+  rbind(ps_all_clutch_avg) %>% 
+  # formatting
+  mutate(timept = factor(timept))
+
+summary(dab_ps_compare_means)
 ```
 
 
@@ -209,7 +310,693 @@ neonate_analysis_df <- left_join(all_clutch_averages, mother_info, by = c("Mothe
 
 
 
-# DAB DIFFS
+
+
+
+
+
+# DAB CEWL clutch ~ mother
+
+
+```{r}
+DAB_CEWL_LM_1 <- lm(data = dab_clutch_mom,
+                      CEWL_g_m2h_mean ~ 
+                      Treatment *
+                      Mother_CEWL +
+                      Tb_CEWL_c_mean +
+                      msmt_temp_C_mean +
+                      msmt_RH_percent_mean + 
+                      VPD_kPa_mean)
+                     
+car::vif(DAB_CEWL_LM_1, type = "predictor")
+drop1(DAB_CEWL_LM_1)
+car::Anova(DAB_CEWL_LM_1, type = "2")
+```
+
+The first variable to drop from the model is humidity. 
+
+```{r}
+DAB_CEWL_LM_2 <- lm(data = dab_clutch_mom,
+                      CEWL_g_m2h_mean ~ 
+                      Treatment *
+                      Mother_CEWL +
+                      Tb_CEWL_c_mean +
+                      msmt_temp_C_mean +
+                      VPD_kPa_mean)
+                     
+car::vif(DAB_CEWL_LM_2, type = "predictor")
+drop1(DAB_CEWL_LM_2)
+car::Anova(DAB_CEWL_LM_2, type = "2")
+```
+
+
+```{r}
+DAB_CEWL_LM_3 <- lm(data = dab_clutch_mom,
+                      CEWL_g_m2h_mean ~ 
+                      Treatment *
+                      Mother_CEWL +
+                      Tb_CEWL_c_mean +
+                      msmt_temp_C_mean)
+                     
+drop1(DAB_CEWL_LM_3)
+car::Anova(DAB_CEWL_LM_3, type = "2")
+```
+
+
+
+```{r}
+DAB_CEWL_LM_4 <- lm(data = dab_clutch_mom,
+                      CEWL_g_m2h_mean ~ 
+                      Treatment *
+                      Mother_CEWL +
+                      Tb_CEWL_c_mean)
+                     
+drop1(DAB_CEWL_LM_4)
+car::Anova(DAB_CEWL_LM_4, type = "2")
+```
+
+
+
+```{r}
+DAB_CEWL_LM_5 <- lm(data = dab_clutch_mom,
+                      CEWL_g_m2h_mean ~ 
+                      Treatment +
+                      Mother_CEWL +
+                      Tb_CEWL_c_mean)
+                     
+drop1(DAB_CEWL_LM_5)
+car::Anova(DAB_CEWL_LM_5, type = "2")
+```
+
+
+
+```{r}
+DAB_CEWL_LM_6 <- lm(data = dab_clutch_mom,
+                      CEWL_g_m2h_mean ~ 
+                      Mother_CEWL +
+                      Tb_CEWL_c_mean)
+
+drop1(DAB_CEWL_LM_6)
+car::Anova(DAB_CEWL_LM_6, type = "2")
+```
+
+
+```{r}
+DAB_CEWL_LM_7 <- lm(data = dab_clutch_mom,
+                      CEWL_g_m2h_mean ~ 
+                      Mother_CEWL)
+
+car::Anova(DAB_CEWL_LM_7, type = "2")
+```
+
+
+
+Null model 
+```{r}
+DAB_CEWL_LM_null <- lm(data = dab_clutch_mom,
+                      CEWL_g_m2h_mean ~ 1)
+```
+
+
+
+## Model Selection
+
+```{r}
+clutch_cewl_models_all <- list(DAB_CEWL_LM_2, 
+                               DAB_CEWL_LM_3, 
+                               DAB_CEWL_LM_4, 
+                               DAB_CEWL_LM_5, 
+                               DAB_CEWL_LM_6, 
+                               DAB_CEWL_LM_7, 
+                               DAB_CEWL_LM_null)
+
+#specify model names
+clutch_cewl_mod_names_all <- c('model2', 'model3',
+                               'model4', 'model5',
+                               'model6', 'model7',
+                               'modelnull')
+
+#calculate AIC of each model
+clutch_cewl_AICc_all <- data.frame(aictab(cand.set = clutch_cewl_models_all, 
+                                 modnames = clutch_cewl_mod_names_all))
+clutch_cewl_AICc_all
+```
+
+So the top three equivalent models are 7, 6, & 5. 6/7 are almost exactly the same, with 5 trailing a bit behind.
+
+Model 7 is clutch avg CEWL ~ mother CEWL. Model 6 adds clutch average body temperature at the time of measurement. Model 5 adds Tb and mother's treatment. However, Tb and mother's treatment did not have significant effects.
+
+
+## Final Model
+
+```{r}
+DAB_CEWL_LM_BEST <- lm(data = dab_clutch_mom,
+                      CEWL_g_m2h_mean ~ 
+                      Mother_CEWL)
+
+car::Anova(DAB_CEWL_LM_BEST, type = "2")
+summary(DAB_CEWL_LM_BEST)
+```
+
+
+## Model Assumptions
+
+Check linear regression assumptions/conditions:
+
+```{r}
+plot(DAB_CEWL_LM_BEST)
+shapiro.test(residuals(DAB_CEWL_LM_BEST))
+```
+
+
+
+
+
+
+
+
+
+# DAB CEWL DIFFS
+
+
+```{r}
+DAB_CEWL_LMM_1 <- lme4::lmer(data = dab_all,
+                      CEWL_g_m2h ~ 
+                      Treatment +
+                      Tb_CEWL_c +
+                      msmt_temp_C +
+                      msmt_RH_percent +
+                      VPD_kPa +
+                        (1|Mother_ID))
+                     
+car::vif(DAB_CEWL_LMM_1)
+drop1(DAB_CEWL_LMM_1)
+car::Anova(DAB_CEWL_LMM_1, test = "F", type = "2")
+```
+
+
+```{r}
+DAB_CEWL_LMM_1a <- lme4::lmer(data = dab_all,
+                      CEWL_g_m2h ~ 
+                      Treatment +
+                      Tb_CEWL_c +
+                      msmt_temp_C +
+                      VPD_kPa +
+                        (1|Mother_ID))
+                     
+car::vif(DAB_CEWL_LMM_1a)
+drop1(DAB_CEWL_LMM_1a)
+car::Anova(DAB_CEWL_LMM_1a, test = "F", type = "2")
+```
+
+
+
+
+```{r}
+DAB_CEWL_LMM_2 <- lme4::lmer(data = dab_all,
+                      CEWL_g_m2h ~ 
+                      Tb_CEWL_c +
+                      msmt_temp_C +
+                      VPD_kPa +
+                        (1|Mother_ID))
+                     
+summary(DAB_CEWL_LMM_2)
+drop1(DAB_CEWL_LMM_2)
+car::Anova(DAB_CEWL_LMM_2, test = "F", type = "2")
+```
+
+
+```{r}
+DAB_CEWL_LMM_3 <- lme4::lmer(data = dab_all,
+                      CEWL_g_m2h ~ 
+                      Tb_CEWL_c +
+                      msmt_temp_C +
+                        (1|Mother_ID))
+                     
+summary(DAB_CEWL_LMM_3)
+drop1(DAB_CEWL_LMM_3)
+car::Anova(DAB_CEWL_LMM_3, test = "F", type = "2")
+```
+
+```{r}
+DAB_CEWL_LMM_4 <- lme4::lmer(data = dab_all,
+                      CEWL_g_m2h ~ 
+                      msmt_temp_C +
+                        (1|Mother_ID))
+                     
+drop1(DAB_CEWL_LMM_4)
+car::Anova(DAB_CEWL_LMM_4, test = "F", type = "2")
+```
+
+```{r}
+DAB_CEWL_LMM_NULL <- lme4::lmer(data = dab_all,
+                      CEWL_g_m2h ~ 1 + (1|Mother_ID))
+```
+
+
+
+## Model Selection
+
+```{r}
+cewl_models_all <- list(DAB_CEWL_LMM_1a, DAB_CEWL_LMM_2, 
+                        DAB_CEWL_LMM_3, DAB_CEWL_LMM_4,
+                        DAB_CEWL_LMM_NULL)
+
+#specify model names
+cewl_mod_names_all <- c('model1', 
+                    'model2', 
+                    'model3',
+                    'model4',
+                    'modelnull')
+
+#calculate AIC of each model
+cewl_AICc_all <- data.frame(aictab(cand.set = cewl_models_all, 
+                                 modnames = cewl_mod_names_all))
+cewl_AICc_all
+```
+
+
+Models 1 and 2 are the best... which includes all variables Treatment + Tb_CEWL_c + msmt_temp_C + VPD_kPa
+
+
+
+
+## Final Model + emmeans
+
+```{r}
+DAB_CEWL_LMM_BEST1 <- lmerTest::lmer(data = dab_all,
+                      CEWL_g_m2h ~ 
+                      Treatment +
+                      Tb_CEWL_c +
+                      msmt_temp_C +
+                      VPD_kPa +
+                        (1|Mother_ID))
+
+summary(DAB_CEWL_LMM_BEST1)
+car::Anova(DAB_CEWL_LMM_BEST2, test = "F", type = "2")
+
+emmeans(DAB_CEWL_LMM_BEST1, pairwise ~ Treatment)
+DAB_CEWL_emmeans <- emmeans(DAB_CEWL_LMM_BEST1, "Treatment")
+DAB_CEWL_emmeans_CI <- tidy(confint(DAB_CEWL_emmeans))
+```
+
+
+```{r}
+DAB_CEWL_LMM_BEST2 <- lmerTest::lmer(data = dab_all,
+                      CEWL_g_m2h ~ 
+                      Tb_CEWL_c +
+                      msmt_temp_C +
+                      VPD_kPa +
+                        (1|Mother_ID))
+
+summary(DAB_CEWL_LMM_BEST2)
+car::Anova(DAB_CEWL_LMM_BEST2, test = "F", type = "2")
+```
+
+## Model Assumptions
+
+```{r}
+plot(DAB_CEWL_LMM_BEST2)
+shapiro.test(residuals(DAB_CEWL_LMM_BEST2))
+```
+
+looks fine, but not great
+
+
+
+
+
+
+# DAB osml clutch ~ mother
+
+
+```{r}
+DAB_osml_LM_1 <- lm(data = dab_clutch_mom,
+                      Plasma_Osmol_Rep_mean_mean ~ 
+                      Treatment *
+                      (Mother_osml + Mother_Days_in_Treatment) +
+                      Mass_g_mean)
+                     
+car::vif(DAB_osml_LM_1, type = "predictor")
+drop1(DAB_osml_LM_1)
+car::Anova(DAB_osml_LM_1, type = "2")
+```
+
+
+```{r}
+DAB_osml_LM_2 <- lm(data = dab_clutch_mom,
+                      Plasma_Osmol_Rep_mean_mean ~ 
+                      Treatment * Mother_Days_in_Treatment +
+                      Mother_osml + 
+                      Mass_g_mean)
+                     
+drop1(DAB_osml_LM_2)
+car::Anova(DAB_osml_LM_2, type = "2")
+```
+
+
+```{r}
+DAB_osml_LM_3 <- lm(data = dab_clutch_mom,
+                      Plasma_Osmol_Rep_mean_mean ~ 
+                      Treatment * Mother_Days_in_Treatment +
+                      Mother_osml)
+                     
+drop1(DAB_osml_LM_3)
+car::Anova(DAB_osml_LM_3, type = "2")
+```
+
+
+```{r}
+DAB_osml_LM_4 <- lm(data = dab_clutch_mom,
+                      Plasma_Osmol_Rep_mean_mean ~ 
+                      Treatment * Mother_Days_in_Treatment)
+                     
+drop1(DAB_osml_LM_4)
+car::Anova(DAB_osml_LM_4, type = "2")
+```
+
+
+```{r}
+DAB_osml_LM_5 <- lm(data = dab_clutch_mom,
+                      Plasma_Osmol_Rep_mean_mean ~ 
+                      Treatment + Mother_Days_in_Treatment)
+                     
+drop1(DAB_osml_LM_5)
+car::Anova(DAB_osml_LM_5, type = "2")
+```
+
+
+```{r}
+DAB_osml_LM_6 <- lm(data = dab_clutch_mom,
+                      Plasma_Osmol_Rep_mean_mean ~ 
+                      Treatment)
+
+car::Anova(DAB_osml_LM_6, type = "2")
+```
+
+
+```{r}
+DAB_osml_LM_null <- lm(data = dab_clutch_mom, Plasma_Osmol_Rep_mean_mean ~ 1)
+```
+
+
+
+
+## Model Selection
+
+```{r}
+clutch_osmol_models_all <- list(DAB_osml_LM_1, DAB_osml_LM_2, DAB_osml_LM_3, DAB_osml_LM_4, DAB_osml_LM_5, DAB_osml_LM_6, DAB_osml_LM_null)
+
+#specify model names
+clutch_osmol_mod_names_all <- c('model1', 
+                    'model2', 
+                    'model3',
+                    'model4',
+                    'model5',
+                    'model6',
+                    'modelnull')
+
+#calculate AIC of each model
+clutch_osmol_AICc_all <- data.frame(aictab(cand.set = clutch_osmol_models_all, 
+                                 modnames = clutch_osmol_mod_names_all))
+clutch_osmol_AICc_all
+```
+
+
+The best top/equivalent models are 5 (tmt + mother days in tmt), 6 (tmt only), and 4 (tmt * mother days in tmt).
+
+
+## Final Model
+
+```{r}
+DAB_osml_LM_BEST <- lm(data = dab_clutch_mom,
+                       Plasma_Osmol_Rep_mean_mean ~ 
+                          Treatment)
+
+car::Anova(DAB_osml_LM_BEST, type = "2")
+summary(DAB_osml_LM_BEST)
+```
+
+
+```{r}
+DAB_osml_LM_BEST_full <- lm(data = dab_clutch_mom,
+                       Plasma_Osmol_Rep_mean_mean ~ 
+                          Treatment * Mother_Days_in_Treatment)
+
+car::Anova(DAB_osml_LM_BEST_full, type = "2")
+summary(DAB_osml_LM_BEST_full)
+```
+
+
+
+
+
+
+## Model Assumptions
+
+
+```{r}
+plot(DAB_osml_LM_BEST)
+plot(DAB_osml_LM_BEST_full)
+```
+
+
+
+
+
+
+
+# DAB OSML DIFFS
+
+
+```{r}
+DAB_OSMOL_LMM_1 <- lme4::lmer(data = dab_all,
+                      Plasma_Osmol_Rep_mean ~ 
+                      Treatment + Mass_g +
+                        (1|Mother_ID))
+                     
+drop1(DAB_OSMOL_LMM_1)
+car::Anova(DAB_OSMOL_LMM_1, test = "F", type = "2")
+```
+
+
+```{r}
+DAB_OSMOL_LMM_2 <- lme4::lmer(data = dab_all,
+                      Plasma_Osmol_Rep_mean ~ 
+                      Treatment +
+                        (1|Mother_ID))
+```
+
+```{r}
+DAB_OSMOL_LMM_null <- lme4::lmer(data = dab_all,
+                      Plasma_Osmol_Rep_mean ~ 1 + (1|Mother_ID))
+```
+
+
+## Model Selection
+
+```{r}
+osml_models_all <- list(DAB_OSMOL_LMM_1, DAB_OSMOL_LMM_2, DAB_OSMOL_LMM_null)
+
+#specify model names
+osml_mod_names_all <- c('model1', 
+                    'model2', 
+                    'modelnull')
+
+#calculate AIC of each model
+osml_AICc_all <- data.frame(aictab(cand.set = osml_models_all, 
+                                 modnames = osml_mod_names_all))
+osml_AICc_all
+```
+
+
+No difference between 1/2.
+
+
+
+
+## Final Model + emmeans
+
+```{r}
+DAB_OSMOL_LMM_BEST <- lmerTest::lmer(data = dab_all,
+                      Plasma_Osmol_Rep_mean ~ 
+                      Treatment +
+                        (1|Mother_ID))
+
+summary(DAB_OSMOL_LMM_BEST)
+car::Anova(DAB_OSMOL_LMM_BEST, test = "F", type = "2")
+
+emmeans(DAB_OSMOL_LMM_BEST, pairwise ~ Treatment)
+DAB_OSMOL_emmeans <- emmeans(DAB_OSMOL_LMM_BEST, "Treatment")
+DAB_OSMOL_emmeans_CI <- tidy(confint(DAB_OSMOL_emmeans))
+```
+
+
+
+
+
+
+
+
+
+# PUB FIG 2 DAB
+
+## Osmolality
+
+```{r}
+ggplot() +
+  geom_pointrange(
+    data = dab_all_clutch_avg,
+    aes(
+      x = Treatment,
+      y = Plasma_Osmol_Rep_mean_mean,
+      ymin = Plasma_Osmol_Rep_mean_min,
+      ymax = Plasma_Osmol_Rep_mean_max,
+      group = Mother_ID,
+      color = Treatment,
+      shape = Treatment
+    ),
+    position = position_jitter(width = 0.3),
+    size = 0.2, linewidth = 0.3,
+    alpha = 0.8,
+    show.legend = FALSE
+  ) +
+  geom_errorbar(
+    data = DAB_OSMOL_emmeans_CI,
+    aes(x = Treatment, ymin = conf.low, ymax = conf.high,
+        color = Treatment),
+    width = 0.3
+  ) +
+  geom_point(
+    data = DAB_OSMOL_emmeans_CI,
+    aes(x = Treatment, y = estimate, 
+        color = Treatment, shape = Treatment),
+    size = 2.5
+  ) +
+
+  # prettys 
+  scale_color_manual(
+    values = c("darkgoldenrod2", "royalblue4"), 
+    labels = c("C" = "Control", "W" = "Hydration"), 
+    name = NULL
+  ) +
+  scale_shape_manual(
+    values = c(15, 17), 
+    labels = c("C" = "Control", "W" = "Hydration"),
+    name = NULL
+  ) +
+  labs(
+    x = NULL, 
+    y = expression('Clutch Osmolality (mmol '*kg^-1*')'),
+    color = "Treatment"
+  ) +
+  scale_y_continuous(
+    limits = c(260, 360), 
+    breaks = seq(260, 360, by = 20)
+  ) +
+  scale_x_discrete(labels = c("C" = "Control", "W" = "Hydration")) +
+  
+  theme(legend.position = "none") +
+  
+  # statistical labels
+  annotate(geom = "text", x = 1.5, y = 340, label = "*", size = 6) -> dab_osml
+  
+dab_osml
+```
+
+
+
+
+## CEWL
+
+```{r}
+ggplot() +
+  geom_pointrange(
+    data = dab_all_clutch_avg,
+    aes(
+      x = Treatment,
+      y = CEWL_g_m2h_mean,
+      ymin = CEWL_g_m2h_min,
+      ymax = CEWL_g_m2h_max,
+      group = Mother_ID,
+      color = Treatment,
+      shape = Treatment
+    ),
+    position = position_jitter(width = 0.3),
+    size = 0.2, linewidth = 0.3,
+    alpha = 0.8,
+    show.legend = FALSE
+  ) +
+  geom_errorbar(
+    data = DAB_CEWL_emmeans_CI,
+    aes(x = Treatment, ymin = conf.low, ymax = conf.high,
+        color = Treatment),
+    width = 0.3
+  ) +
+  geom_point(
+    data = DAB_CEWL_emmeans_CI,
+    aes(x = Treatment, y = estimate, 
+        color = Treatment, shape = Treatment),
+    size = 2.5
+  ) +
+
+  # prettys 
+  scale_color_manual(
+    values = c("darkgoldenrod2", "royalblue4"), 
+    labels = c("C" = "Control", "W" = "Hydration"), 
+    name = NULL
+  ) +
+  scale_shape_manual(
+    values = c(15, 17), 
+    labels = c("C" = "Control", "W" = "Hydration"),
+    name = NULL
+  ) +
+  labs(
+    x = NULL, 
+    y = expression('CEWL (g '*m^-2*' '*h^-1*')'), 
+    color = "Treatment"
+  ) +
+  scale_y_continuous(
+    limits = c(4, 25), 
+    breaks = seq(0, 30, by = 5)
+  ) +
+  scale_x_discrete(labels = c("C" = "Control", "W" = "Hydration")) +
+  
+  theme(legend.position = "none") +
+  
+  # statistical labels
+  annotate(geom = "text", x = 1.5, y = 22, label = "NS", size = 2) -> dab_cewl
+  
+dab_cewl
+```
+
+
+
+## Arrange 
+
+
+```{r}
+set.seed(135) # to get a nice jitter: 10, 35, 44, 359, 135
+
+ggarrange(
+  dab_osml, dab_cewl,
+  nrow = 2,
+  ncol = 1,
+  labels = c("A", "B"),
+  align = "hv"
+) -> dab_diffs
+
+ggsave(
+  filename = "Fig_neonate_dab_diffs.pdf",
+  plot = dab_diffs,
+  path = "./results_figures",
+  device = "pdf",
+  dpi = 600,
+  units = "mm",
+  width = 70,
+  height = 150
+)
+```
 
 
 
@@ -220,6 +1007,13 @@ neonate_analysis_df <- left_join(all_clutch_averages, mother_info, by = c("Mothe
 
 
 
+# PUB FIG 3 CEWL CLUTCH ~ MOTHER
+
+
+
+```{r}
+
+```
 
 
 
@@ -233,6 +1027,83 @@ neonate_analysis_df <- left_join(all_clutch_averages, mother_info, by = c("Mothe
 
 # TMT EFFECTS
 
+
+## MASS
+
+
+
+
+
+## MASS CHANGE
+
+
+
+
+## OSML
+
+
+
+## OSML CHANGE
+
+
+
+
+
+## CEWL
+
+
+
+## CEWL CHANGE 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# PUB FIG 4
+
+## mass raw
+
+## mass change
+
+## osml raw
+
+## osml change
+
+## cewl raw
+
+## cewl change
 
 
 
