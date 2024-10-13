@@ -593,7 +593,7 @@ DAB_CEWL_LMM_BEST1 <- lmerTest::lmer(data = dab_all,
                         (1|Mother_ID))
 
 summary(DAB_CEWL_LMM_BEST1)
-car::Anova(DAB_CEWL_LMM_BEST2, test = "F", type = "2")
+car::Anova(DAB_CEWL_LMM_BEST1, test = "F", type = "2")
 
 emmeans(DAB_CEWL_LMM_BEST1, pairwise ~ Treatment)
 DAB_CEWL_emmeans <- emmeans(DAB_CEWL_LMM_BEST1, "Treatment")
@@ -1028,22 +1028,103 @@ ggsave(
 # TMT EFFECTS
 
 
+## Calculate Deltas
+
+Only 3 individuals were for sure measured at the before and after time points, so the change from before to after cannot be calculated for individual neonates. 
+
+```{r}
+deltas_means <- dab_ps_compare_means %>%
+  arrange(Mother_ID, timept) %>% 
+  group_by(Mother_ID) %>%
+  mutate(
+    delta_mass = Mass_g_mean - lag(Mass_g_mean),
+    delta_osml = Plasma_Osmol_Rep_mean_mean - lag(Plasma_Osmol_Rep_mean_mean),
+    delta_CEWL = CEWL_g_m2h_mean - lag(CEWL_g_m2h_mean)
+  ) 
+
+deltas_befaft <- deltas_means %>% 
+  ungroup() %>% 
+  mutate(
+    delta_mass = case_when(is.na(delta_mass) ~ 0, TRUE ~ delta_mass),
+    delta_osml = case_when(is.na(delta_osml) ~ 0, TRUE ~ delta_osml),
+    delta_CEWL = case_when(is.na(delta_CEWL) ~ 0, TRUE ~ delta_CEWL)
+  )
+
+deltas <- deltas_means %>%
+  filter(complete.cases(delta_mass))
+
+summary(deltas_befaft)
+summary(deltas)
+```
+
+
 ## MASS
 
+```{r}
+mass_lm_time_tmt <- lmerTest::lmer(data = dab_ps_compare, 
+            Mass_g ~ timept * Treatment + (1|Mother_ID))
 
+mass_means_time <- emmeans(mass_lm_time_tmt, 
+                       pairwise ~ timept | Treatment)
+mass_means_time$contrasts
+
+mass_means_tmt <- emmeans(mass_lm_time_tmt, 
+                       pairwise ~ Treatment | timept)
+mass_means_tmt$contrasts
+
+mass_means <- emmeans(mass_lm_time_tmt, "Treatment", by = "timept")
+mass_lm_time_tmt_CI <- tidy(confint(mass_means))
+#mass_lm_time_tmt_CI <- tidy(mass_means_time$emmeans) # either would work
+
+car::Anova(mass_lm_time_tmt, test = "F", type = "2")
+```
 
 
 
 ## MASS CHANGE
+
+```{r}
+delta_mass_lm <- lm(data = deltas, delta_mass ~ Treatment)
+
+summary(delta_mass_lm)
+car::Anova(delta_mass_lm, test = "F", type = "2")
+emmeans(delta_mass_lm, pairwise ~ Treatment)
+```
 
 
 
 
 ## OSML
 
+```{r}
+osml_lm_time_tmt <- lmerTest::lmer(data = dab_ps_compare, 
+    Plasma_Osmol_Rep_mean ~ timept * Treatment + (1|Mother_ID))
+
+osml_means_time <- emmeans(osml_lm_time_tmt, 
+                       pairwise ~ timept | Treatment)
+osml_means_time$contrasts
+
+osml_means_tmt <- emmeans(osml_lm_time_tmt, 
+                       pairwise ~ Treatment | timept)
+osml_means_tmt$contrasts
+
+osml_means <- emmeans(osml_lm_time_tmt, "Treatment", by = "timept")
+osml_lm_time_tmt_CI <- tidy(confint(osml_means))
+
+car::Anova(osml_lm_time_tmt, test = "F", type = "2")
+```
+
 
 
 ## OSML CHANGE
+
+```{r}
+delta_osml_lm <- lm(data = deltas, delta_osml ~ Treatment)
+
+summary(delta_osml_lm)
+car::Anova(delta_osml_lm, test = "F", type = "2")
+emmeans(delta_osml_lm, pairwise ~ Treatment)
+```
 
 
 
@@ -1052,10 +1133,37 @@ ggsave(
 ## CEWL
 
 
+```{r}
+cewl_lm_time_tmt <- lmerTest::lmer(data = dab_ps_compare, 
+          CEWL_g_m2h ~ timept * Treatment + (1|Mother_ID))
+
+cewl_means_time <- emmeans(cewl_lm_time_tmt, 
+                       pairwise ~ timept | Treatment)
+cewl_means_time$contrasts
+
+cewl_means_tmt <- emmeans(cewl_lm_time_tmt, 
+                       pairwise ~ Treatment | timept)
+cewl_means_tmt$contrasts
+
+cewl_means <- emmeans(cewl_lm_time_tmt, "Treatment", by = "timept")
+cewl_lm_time_tmt_CI <- tidy(confint(cewl_means))
+
+car::Anova(cewl_lm_time_tmt, test = "F", type = "2")
+```
+
+
+
+
 
 ## CEWL CHANGE 
 
+```{r}
+delta_cewl_lm <- lm(data = deltas, delta_CEWL ~ Treatment)
 
+summary(delta_cewl_lm)
+car::Anova(delta_cewl_lm, test = "F", type = "2")
+emmeans(delta_cewl_lm, pairwise ~ Treatment)
+```
 
 
 
@@ -1093,23 +1201,467 @@ ggsave(
 
 # PUB FIG 4
 
+
 ## mass raw
 
-## mass change
+```{r}
+ggplot() +
+  geom_pointrange(
+    data = dab_ps_compare_means,
+    aes(
+      x = timept,
+      y = Mass_g_mean,
+      ymin = Mass_g_mean-Mass_g_sd,
+      ymax = Mass_g_mean+Mass_g_sd,
+      group = Treatment,
+      color = Treatment,
+      shape = Treatment
+    ),
+    position = position_jitterdodge(jitter.width = 0.6, dodge.width = 0.6),
+    size = 0.2, linewidth = 0.3,
+    alpha = 0.6,
+    show.legend = FALSE
+  ) +
+  geom_line(
+    data = mass_lm_time_tmt_CI,
+    aes(
+      x = timept, y = estimate, 
+      group = Treatment, 
+      color = Treatment
+    ),
+    position = position_dodge(width = 0.6)
+  ) +
+  geom_errorbar(
+    data = mass_lm_time_tmt_CI,
+    aes(
+      x = timept, y = estimate, 
+      ymin = conf.low, ymax = conf.high, 
+      group = Treatment, 
+      color = Treatment
+    ),
+    width = 0.4,
+    position = position_dodge(width = 0.6)
+  ) +
+  geom_point(
+    data = mass_lm_time_tmt_CI,
+    aes(
+      x = timept, y = estimate, 
+      group = Treatment, 
+      color = Treatment,
+      shape = Treatment
+    ),
+    size = 2.5,
+    position = position_dodge(width = 0.6)
+  ) + 
+  
+  # prettys 
+  scale_color_manual(
+    values = c("darkgoldenrod2", "royalblue4"), 
+    labels = c("C" = "Control", "W" = "Hydration"), 
+    name = "Treatment"
+  ) +
+  scale_shape_manual(
+    values = c(15, 17), 
+    labels = c("C" = "Control", "W" = "Hydration"),
+    name = "Treatment"
+  ) +
+  scale_y_continuous(
+    limits = c(10, 21), 
+    breaks = c(10, 15, 20),
+    name = "Mass (g)"
+  ) + 
+  scale_x_discrete(
+    labels = c("DAB" = "At Birth", "PS" = "Post-Shed"),
+    name = NULL
+  ) +
+  
+  theme(legend.position = "none") +
+  
+  # statistical labels
+  annotate(geom = "text", x = 1, y = 21, label = "NS", size = 2) +
+  annotate(geom = "text", x = 2, y = 21, label = "NS", size = 2) +
+  annotate(geom = "text", x = 2.5, y = 12.8, label = "*", size = 6, 
+           color = "darkgoldenrod2") +
+  annotate(geom = "text", x = 2.5, y = 13.7, label = "*", size = 6,
+           color = "royalblue4") -> neo_mass # save
 
-## osml raw
+neo_mass
+```
 
-## osml change
+
+
+
+## osmol raw
+
+```{r}
+ggplot() +
+  geom_pointrange(
+    data = dab_ps_compare_means,
+    aes(
+      x = timept,
+      y = Plasma_Osmol_Rep_mean_mean,
+      ymin = Plasma_Osmol_Rep_mean_mean-Plasma_Osmol_Rep_mean_sd,
+      ymax = Plasma_Osmol_Rep_mean_mean+Plasma_Osmol_Rep_mean_sd,
+      group = Treatment,
+      color = Treatment,
+      shape = Treatment
+    ),
+    position = position_jitterdodge(jitter.width = 0.6, dodge.width = 0.6),
+    size = 0.2, linewidth = 0.3,
+    alpha = 0.6,
+    show.legend = FALSE
+  ) +
+  geom_line(
+    data = osml_lm_time_tmt_CI,
+    aes(
+      x = timept, y = estimate, 
+      group = Treatment, 
+      color = Treatment
+    ),
+    position = position_dodge(width = 0.6)
+  ) +
+  geom_errorbar(
+    data = osml_lm_time_tmt_CI,
+    aes(
+      x = timept, y = estimate, 
+      ymin = conf.low, ymax = conf.high, 
+      group = Treatment, 
+      color = Treatment
+    ),
+    width = 0.4,
+    position = position_dodge(width = 0.6)
+  ) +
+  geom_point(
+    data = osml_lm_time_tmt_CI,
+    aes(
+      x = timept, y = estimate, 
+      group = Treatment, 
+      color = Treatment,
+      shape = Treatment
+    ),
+    size = 2.5,
+    position = position_dodge(width = 0.6)
+  ) + 
+  
+  # prettys 
+  scale_color_manual(
+    values = c("darkgoldenrod2", "royalblue4"), 
+    labels = c("C" = "Control", "W" = "Hydration"), 
+    name = "Treatment"
+  ) +
+  scale_shape_manual(
+    values = c(15, 17), 
+    labels = c("C" = "Control", "W" = "Hydration"),
+    name = "Treatment"
+  ) +
+  scale_y_continuous(
+    limits = c(240, 410), 
+    breaks = seq(200, 400, by = 50),
+    name = expression('Osmolality (mmol '*kg^-1*')'),
+  ) + 
+  scale_x_discrete(
+    labels = c("DAB" = "At Birth", "PS" = "Post-Shed"),
+    name = NULL
+  ) +
+  
+  theme(legend.position = "none") +
+  
+  # statistical labels
+  annotate(geom = "text", x = 1, y = 405, label = "NS", size = 2) +
+  annotate(geom = "text", x = 2, y = 400, label = "*", size = 6) +
+  annotate(geom = "text", x = 2.5, y = 335, label = "*", size = 6, 
+           color = "darkgoldenrod2") +
+  annotate(geom = "text", x = 2.5, y = 290, label = "NS", size = 2,
+           color = "royalblue4") -> neo_osmol
+
+neo_osmol
+```
+
+
+
+
+
+
 
 ## cewl raw
 
-## cewl change
+```{r}
+ggplot() +
+  geom_pointrange(
+    data = dab_ps_compare_means,
+    aes(
+      x = timept,
+      y = CEWL_g_m2h_mean,
+      ymin = CEWL_g_m2h_mean-CEWL_g_m2h_sd,
+      ymax = CEWL_g_m2h_mean+CEWL_g_m2h_sd,
+      group = Treatment,
+      color = Treatment,
+      shape = Treatment
+    ),
+    position = position_jitterdodge(jitter.width = 0.6, dodge.width = 0.6),
+    size = 0.2, linewidth = 0.3,
+    alpha = 0.6,
+    show.legend = FALSE
+  ) +
+  geom_line(
+    data = cewl_lm_time_tmt_CI,
+    aes(
+      x = timept, y = estimate, 
+      group = Treatment, 
+      color = Treatment
+    ),
+    position = position_dodge(width = 0.6)
+  ) +
+  geom_errorbar(
+    data = cewl_lm_time_tmt_CI,
+    aes(
+      x = timept, y = estimate, 
+      ymin = conf.low, ymax = conf.high,  
+      group = Treatment, 
+      color = Treatment
+    ),
+    width = 0.4,
+    position = position_dodge(width = 0.6)
+  ) +
+  geom_point(
+    data = cewl_lm_time_tmt_CI,
+    aes(
+      x = timept, y = estimate, 
+      group = Treatment, 
+      color = Treatment,
+      shape = Treatment
+    ),
+    size = 2.5,
+    position = position_dodge(width = 0.6)
+  ) + 
+  
+  # prettys 
+  scale_color_manual(
+    values = c("darkgoldenrod2", "royalblue4"), 
+    labels = c("C" = "Control", "W" = "Hydration"), 
+    name = "Treatment"
+  ) +
+  scale_shape_manual(
+    values = c(15, 17), 
+    labels = c("C" = "Control", "W" = "Hydration"),
+    name = "Treatment"
+  ) +
+  scale_y_continuous(
+    limits = c(5, 23), 
+    breaks = seq(5, 20, by = 5),
+    name = expression('CEWL (g '*m^-2*' '*h^-1*')')
+  ) + 
+  scale_x_discrete(
+    labels = c("DAB" = "At Birth", "PS" = "Post-Shed"),
+    name = NULL
+  ) +
+  
+  theme(legend.position = "none") +
+  
+  # statistical labels
+  annotate(geom = "text", x = 1, y = 22.5, label = "NS", size = 2) +
+  annotate(geom = "text", x = 2, y = 22.5, label = "NS", size = 2) +
+  annotate(geom = "text", x = 2.45, y = 15.5, label = "*", size = 6, 
+           color = "darkgoldenrod2") +
+  annotate(geom = "text", x = 2.55, y = 15.5, label = "*", size = 6,
+           color = "royalblue4") -> neo_cewl
+  
+neo_cewl
+```
 
 
 
 
 
 
+## change in mass
+
+```{r}
+ggplot(
+  data = deltas_befaft, 
+  aes(
+    x = timept,
+    y = delta_mass,
+    group = Mother_ID,
+    color = Treatment,
+    shape = Treatment
+  )) +
+  geom_hline(yintercept = 0, linetype = 'dashed', color = "darkgray") +
+  geom_point(size = 1.4, position = position_dodge(width = 0.1)) +
+  geom_line(alpha = 0.4, position = position_dodge(width = 0.1)) +
+  
+  # prettys 
+  scale_color_manual(
+    values = c("darkgoldenrod2", "royalblue4"), 
+    labels = c("C" = "Control", "W" = "Hydration"), 
+    name = NULL
+  ) +
+  scale_shape_manual(
+    values = c(15, 17), 
+    labels = c("C" = "Control", "W" = "Hydration"),
+    name = NULL
+  ) +
+  scale_y_continuous(
+    breaks = c(-3, -2, -1, 0),
+    name = expression(Delta ~ 'Mass (g)')
+  ) +
+  scale_x_discrete(
+    labels = c("DAB" = "At Birth", "PS" = "Post-Shed"),
+    name = NULL
+  ) +
+  
+  theme(legend.position = "inside",
+        legend.position.inside = c(0.25, 0.2),
+        legend.background = element_blank()) +
+  
+  # labels
+  annotate(geom = "text", x = 2.3, y = -1.1, label = "*", size = 6, 
+           color = "royalblue4") +
+  annotate(geom = "text", x = 2.3, y = -2.1, label = "*", size = 6, 
+           color = "darkgoldenrod2") +
+  annotate(geom = "text", x = 2, y = -0.5, label = "*", 
+           size = 6) -> neo_change_mass
+neo_change_mass
+```
+
+
+
+
+
+
+
+## change in osmol
+
+```{r}
+ggplot(
+  data = deltas_befaft, 
+  aes(
+    x = timept,
+    y = delta_osml,
+    group = Mother_ID,
+    color = Treatment,
+    shape = Treatment
+  )) +
+  geom_hline(yintercept = 0, linetype = 'dashed', color = "darkgray") +
+  geom_point(size = 1.4, position = position_dodge(width = 0.1)) +
+  geom_line(alpha = 0.4, position = position_dodge(width = 0.1)) +
+  
+  # prettys 
+  scale_color_manual(
+    values = c("darkgoldenrod2", "royalblue4"), 
+    labels = c("C" = "Control", "W" = "Hydration"), 
+    name = NULL
+  ) +
+  scale_shape_manual(
+    values = c(15, 17), 
+    labels = c("C" = "Control", "W" = "Hydration"),
+    name = NULL
+  ) +
+  scale_y_continuous(
+    breaks = c(-20, 0, 20, 40, 60, 80),
+    name = expression(Delta ~ 'Osmolality (mmol '*kg^-1*')'),
+  ) +
+  scale_x_discrete(
+    labels = c("DAB" = "At Birth", "PS" = "Post-Shed"),
+    name = NULL
+  ) +
+  
+  theme(legend.position = "inside",
+        legend.position.inside = c(0.25, 0.8),
+        legend.background = element_blank()) +
+  
+  # labels
+  annotate(geom = "text", x = 2.3, y = -5, label = "NS", size = 2, 
+           color = "royalblue4") +
+  annotate(geom = "text", x = 2.3, y = 45, label = "*", size = 6, 
+           color = "darkgoldenrod2") +
+  annotate(geom = "text", x = 2, y = 81, label = "*", 
+           size = 6) -> neo_change_osml
+neo_change_osml
+```
+
+
+
+## change in cewl
+
+```{r}
+ggplot(
+  data = deltas_befaft, 
+  aes(
+    x = timept,
+    y = delta_CEWL,
+    group = Mother_ID,
+    color = Treatment,
+    shape = Treatment
+  )) +
+  geom_hline(yintercept = 0, linetype = 'dashed', color = "darkgray") +
+  geom_point(size = 1.4, position = position_dodge(width = 0.1)) +
+  geom_line(alpha = 0.4, position = position_dodge(width = 0.1)) +
+  
+  # prettys 
+  scale_color_manual(
+    values = c("darkgoldenrod2", "royalblue4"), 
+    labels = c("C" = "Control", "W" = "Hydration"), 
+    name = NULL
+  ) +
+  scale_shape_manual(
+    values = c(15, 17), 
+    labels = c("C" = "Control", "W" = "Hydration"),
+    name = NULL
+  ) +
+  scale_y_continuous(
+    breaks = c(0, 5, 10),
+    name = expression(Delta ~ 'CEWL (g '*m^-2*' '*h^-1*')')
+  ) +
+  scale_x_discrete(
+    labels = c("DAB" = "At Birth", "PS" = "Post-Shed"),
+    name = NULL
+  ) +
+  
+  theme(legend.position = "inside",
+        legend.position.inside = c(0.25, 0.8),
+        legend.background = element_blank()) +
+  
+  # labels
+  annotate(geom = "text", x = 2.25, y = 5, label = "*", size = 6,
+           color = "darkgoldenrod2") +
+  annotate(geom = "text", x = 2.35, y = 5, label = "*", size = 6,
+           color = "royalblue4") +
+  annotate(geom = "text", x = 2, y = 11, label = "NS", 
+           size = 2) -> neo_change_cewl
+neo_change_cewl
+```
+
+
+
+
+
+
+## arrange
+
+
+```{r}
+ggarrange(
+  neo_mass, neo_change_mass,
+  neo_osmol, neo_change_osml,
+  neo_cewl, neo_change_cewl,
+  nrow = 3,
+  ncol = 2,
+  labels = c("A", "B", "C", "D", "E", "F"),
+  align = "hv"
+) -> neo_tmt_effects
+
+ggsave(
+  filename = "Fig4_neonate_tmt_effects.pdf",
+  plot = neo_tmt_effects,
+  path = "./results_figures",
+  device = "pdf",
+  dpi = 600,
+  units = "mm",
+  width = 150,
+  height = 180
+)
+```
 
 
 
