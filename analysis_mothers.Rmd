@@ -32,28 +32,11 @@ library("ggpubr")
 
 # Load & Tidy Data
 
-## Osml, Mass, SVL
-
-I think this is redundant with the mother_data_all_final_2
-```{r}
-# #Body measurement and measurements that are not replicated
-# mother_data_final <- read_rds("data/FinalMotherViridis.RDS") 
-# 
-# #Osmolarity data after outliers were removed and replicates were averaged 
-# mother_temp_osm <- read_rds("data/clean_MotherOsmolality.RDS")
-# 
-# #merging the two data frames so osmolarity data is with all other data
-# mother_data_all_final <- left_join(mother_data_final, mother_temp_osm, 
-#                        by = c("Indiv_ID", "CEWL_Blood_Collect_Date")) %>% 
-#   mutate(Preg_Stage = factor(Preg_Stage, 
-#                       levels = c("DAC", "1WAC", "2WAC", "DAB", "1WAB")))
-```
-
 
 ## CEWL, Osml, Mass, SVL
 
 ```{r}
-mother_data_all_final_2 <- read_rds("data/mother_data_all_final_2.RDS")
+mother_data_all <- read_rds("data/mother_data_all.RDS")
 ```
 
 
@@ -105,7 +88,7 @@ days_in_tmt_clean <- days_in_tmt %>%
 
 
 ```{r}
-mother_data_all_final_full <- mother_data_all_final_2 %>% 
+mother_data_all_final_full <- mother_data_all %>% 
   left_join(day_scale_clean, 
             by = c("Indiv_ID", "CEWL_Blood_Collect_Date")) %>% 
   left_join(days_in_tmt_clean, 
@@ -1569,9 +1552,10 @@ ggsave(
 
 ## CEWL ~ temp
 
-mother_data_all_final_2
+
 ```{r}
-ggplot(data = mother_data_all_final_2, aes(x = msmt_temp_C, y = CEWL_g_m2h)) +
+ggplot(data = mother_data_all, 
+       aes(x = msmt_temp_C, y = CEWL_g_m2h)) +
   geom_point(size = 2, 
              alpha = 0.7,
              color = "springgreen3") +
@@ -1597,8 +1581,8 @@ ggplot(data = mother_data_all_final_2, aes(x = msmt_temp_C, y = CEWL_g_m2h)) +
 
 
 ```{r}
-
-ggplot(data = mother_data_all_final_2, aes(x = msmt_RH_percent, y = CEWL_g_m2h)) +
+ggplot(data = mother_data_all, 
+       aes(x = msmt_RH_percent, y = CEWL_g_m2h)) +
   geom_point(size = 2, 
              alpha = 0.7, 
              color = "springgreen3") +

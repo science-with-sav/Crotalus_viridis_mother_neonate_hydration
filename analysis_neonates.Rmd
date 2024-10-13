@@ -1,8 +1,12 @@
 ---
-title: "Neonate Analysis Colorado 2022"
+title: "Neonate Data Analysis Colorado 2022"
 author: "Robin Bedard & Savannah Weaver"
-date: "2024-10-05"
-output: html_document
+output: 
+  rmdformats::html_clean:
+    highlight: tango
+    thumbnails: FALSE
+    toc: TRUE
+    toc_depth: 3
 ---
 
 
@@ -61,7 +65,7 @@ PS = post-shed / 1 week after birth
 This is the osmolality of each individual neonate the day after birth. 
 
 ```{r}
-neonate_dab_osmol <- readRDS("data/neonates/clean_Neonate_DAB_Osmolality.RDS")
+neonate_dab_osmol <- readRDS("data/neonate_DAB_osmolality.RDS")
 head(neonate_dab_osmol)
 ```
 
@@ -71,7 +75,7 @@ head(neonate_dab_osmol)
 This is the body size and body temperature at time of CEWL measurements for each individual neonate. 
 
 ```{r}
-neonate_dab_all0 <- readRDS("data/neonates/FinalNeonateDAB.RDS")
+neonate_dab_all0 <- readRDS("data/neonate_DAB_body_size.RDS")
 
 neonate_dab_all <- neonate_dab_all0 %>% 
   # fix a typo of where the decimal was put
@@ -90,7 +94,7 @@ summary(neonate_dab_all)
 ## PS lumped
 
 ```{r}
-neonate_postshed <- readRDS("data/neonates/neonate_postshed_clean.RDS")
+neonate_postshed <- readRDS("data/neonate_PS_all_data.RDS")
 ```
 
 
@@ -139,7 +143,7 @@ summary(neonate_postshed_clean)
 ## CEWL
 
 ```{r}
-all_data_CEWL0 <- readRDS("data/neonates/CEWL_data_all_clean.RDS")
+all_data_CEWL0 <- readRDS("data/CEWL_data_all.RDS")
 
 all_data_CEWL <- all_data_CEWL0 %>% 
   rename(CEWL_Blood_Collect_Date = date, Indiv_ID = individual_ID) %>% 
@@ -260,10 +264,12 @@ summary(dab_all_clutch_avg)
 ## Mother Data!
 
 ```{r}
-mother_values <- read_rds("./data/mother_values.RDS")
+mother_values <- read_rds("data/mother_values.RDS")
 
 dab_clutch_mom <- dab_all_clutch_avg %>% 
   left_join(mother_values, by = "Mother_ID")
+
+summary(dab_clutch_mom)
 ```
 
 
@@ -644,14 +650,21 @@ car::Anova(DAB_osml_LM_1, type = "2")
 
 
 ```{r}
-DAB_osml_LM_2 <- lm(data = dab_clutch_mom,
+DAB_osml_LM_2a <- lm(data = dab_clutch_mom,
                       Plasma_Osmol_Rep_mean_mean ~ 
                       Treatment * Mother_Days_in_Treatment +
                       Mother_osml + 
                       Mass_g_mean)
                      
-drop1(DAB_osml_LM_2)
-car::Anova(DAB_osml_LM_2, type = "2")
+drop1(DAB_osml_LM_2a)
+car::Anova(DAB_osml_LM_2a, type = "2")
+
+DAB_osml_LM_2b <- lm(data = dab_clutch_mom,
+                      Plasma_Osmol_Rep_mean_mean ~ 
+                      Treatment *
+                      (Mother_osml + Mother_Days_in_Treatment))
+drop1(DAB_osml_LM_2b)
+car::Anova(DAB_osml_LM_2b, type = "2")
 ```
 
 
@@ -705,7 +718,7 @@ DAB_osml_LM_null <- lm(data = dab_clutch_mom, Plasma_Osmol_Rep_mean_mean ~ 1)
 ## Model Selection
 
 ```{r}
-clutch_osmol_models_all <- list(DAB_osml_LM_1, DAB_osml_LM_2, DAB_osml_LM_3, DAB_osml_LM_4, DAB_osml_LM_5, DAB_osml_LM_6, DAB_osml_LM_null)
+clutch_osmol_models_all <- list(DAB_osml_LM_1, DAB_osml_LM_2a, DAB_osml_LM_3, DAB_osml_LM_4, DAB_osml_LM_5, DAB_osml_LM_6, DAB_osml_LM_null)
 
 #specify model names
 clutch_osmol_mod_names_all <- c('model1', 
@@ -739,12 +752,22 @@ summary(DAB_osml_LM_BEST)
 
 
 ```{r}
-DAB_osml_LM_BEST_full <- lm(data = dab_clutch_mom,
+DAB_osml_LM_BEST_add <- lm(data = dab_clutch_mom,
+                       Plasma_Osmol_Rep_mean_mean ~ 
+                          Treatment + Mother_Days_in_Treatment)
+
+car::Anova(DAB_osml_LM_BEST_add, type = "2")
+summary(DAB_osml_LM_BEST_add)
+```
+
+
+```{r}
+DAB_osml_LM_BEST_int <- lm(data = dab_clutch_mom,
                        Plasma_Osmol_Rep_mean_mean ~ 
                           Treatment * Mother_Days_in_Treatment)
 
-car::Anova(DAB_osml_LM_BEST_full, type = "2")
-summary(DAB_osml_LM_BEST_full)
+car::Anova(DAB_osml_LM_BEST_int, type = "2")
+summary(DAB_osml_LM_BEST_int)
 ```
 
 
@@ -757,7 +780,8 @@ summary(DAB_osml_LM_BEST_full)
 
 ```{r}
 plot(DAB_osml_LM_BEST)
-plot(DAB_osml_LM_BEST_full)
+plot(DAB_osml_LM_BEST_add)
+plot(DAB_osml_LM_BEST_int)
 ```
 
 
@@ -1007,12 +1031,97 @@ ggsave(
 
 
 
-# PUB FIG 3 CEWL CLUTCH ~ MOTHER
+# PUB FIG 3 
+
+
+
+## CEWL CLUTCH ~ MOTHER
 
 
 
 ```{r}
+ggplot(
+  dab_clutch_mom,
+  aes(
+    x = Mother_CEWL,
+    y = CEWL_g_m2h_mean
+  )
+) +
+  geom_abline(
+    slope = 1, intercept = 0, 
+    linetype = "dashed", color = "darkgrey"
+  ) +
+  geom_pointrange(
+    aes(ymin = CEWL_g_m2h_mean-CEWL_g_m2h_sd,
+        ymax = CEWL_g_m2h_mean+CEWL_g_m2h_sd),
+    color = "springgreen3",
+    alpha = 0.6, size = 0.2, linewidth = 0.3
+  ) +
+  geom_point(color = "springgreen3") +
+  geom_smooth(
+    se = F,
+    formula = 'y~x',
+    method = "lm",
+    color = "black",
+    linewidth = 1
+  ) +
+  scale_x_continuous(
+    limits = c(0, 30),
+    breaks = c(0, 10, 20, 30),
+    name = expression('Mother CEWL (g '*m^-2*' '*h^-1*')')
+  ) +
+  scale_y_continuous(
+    limits = c(0, 21),
+    breaks = c(0, 10, 20),
+    name = expression('Neonate CEWL (g '*m^-2*' '*h^-1*')')
+  ) -> neo_mom_CEWL
+neo_mom_CEWL
+```
 
+export it:
+
+```{r}
+ggsave(
+  filename = "Fig3_neonate_mother_CEWL.pdf",
+  plot = neo_mom_CEWL,
+  path = "./results_figures",
+  device = "pdf",
+  dpi = 600,
+  units = "mm",
+  width = 120,
+  height = 80
+)
+```
+
+
+
+
+
+
+## OSML CLUTCH ~ MOTHER
+
+
+
+```{r}
+ggplot(
+  dab_clutch_mom,
+  aes(
+    x = Mother_Days_in_Treatment,
+    y = Plasma_Osmol_Rep_mean_mean,
+    color = Treatment
+  )
+) +
+  geom_abline(
+    slope = 1, intercept = 0, 
+    linetype = "dashed", color = "darkgrey"
+  ) +
+  geom_point() +
+  geom_smooth(
+    se = F,
+    formula = 'y~x',
+    method = "lm"
+  #  color = "springgreen3"
+  )
 ```
 
 
