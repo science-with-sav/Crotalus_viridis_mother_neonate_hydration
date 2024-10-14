@@ -15,6 +15,12 @@ output:
 # Packages
 
 
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(include = TRUE, message = FALSE, warning = FALSE)
+```
+
+
 ```{r}
 library("tidyverse") # for dplyr workflow + ggplot
 library("rmdformats") # pretty Rmd format
@@ -65,7 +71,7 @@ PS = post-shed / 1 week after birth
 This is the osmolality of each individual neonate the day after birth. 
 
 ```{r}
-neonate_dab_osmol <- readRDS("data/neonate_DAB_osmolality.RDS")
+neonate_dab_osmol <- read_rds("data/neonate_DAB_osmolality.RDS")
 head(neonate_dab_osmol)
 ```
 
@@ -75,7 +81,7 @@ head(neonate_dab_osmol)
 This is the body size and body temperature at time of CEWL measurements for each individual neonate. 
 
 ```{r}
-neonate_dab_all0 <- readRDS("data/neonate_DAB_body_size.RDS")
+neonate_dab_all0 <- read_rds("data/neonate_DAB_body_size.RDS")
 
 neonate_dab_all <- neonate_dab_all0 %>% 
   # fix a typo of where the decimal was put
@@ -94,7 +100,7 @@ summary(neonate_dab_all)
 ## PS lumped
 
 ```{r}
-neonate_postshed <- readRDS("data/neonate_PS_all_data.RDS")
+neonate_postshed <- read_rds("data/neonate_PS_all_data.RDS")
 ```
 
 
@@ -143,7 +149,7 @@ summary(neonate_postshed_clean)
 ## CEWL
 
 ```{r}
-all_data_CEWL0 <- readRDS("data/CEWL_data_all.RDS")
+all_data_CEWL0 <- read_rds("data/CEWL_data_all.RDS")
 
 all_data_CEWL <- all_data_CEWL0 %>% 
   rename(CEWL_Blood_Collect_Date = date, Indiv_ID = individual_ID) %>% 

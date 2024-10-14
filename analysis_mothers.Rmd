@@ -13,6 +13,11 @@ output:
 # Packages
 
 
+```{r, include=FALSE}
+knitr::opts_chunk$set(include = TRUE, message = FALSE, warning = FALSE)
+```
+
+
 ```{r}
 library("tidyverse") # for dplyr workflow + ggplot
 library("rmdformats") # pretty Rmd format
