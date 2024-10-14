@@ -1,0 +1,336 @@
+---
+title: "CEWL Data Wrangling"
+author: "Robin Bedard & Savannah Weaver"
+output: 
+  rmdformats::html_clean:
+    highlight: tango
+    thumbnails: FALSE
+    toc: TRUE
+    toc_depth: 3
+---
+
+
+# Packages
+
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(include = TRUE, message = FALSE, warning = FALSE)
+```
+
+
+```{r setup, include = TRUE, message = FALSE}
+if (!require("tidyverse")) install.packages("tidyverse")
+library("tidyverse") # workflow and plots
+if (!require("rmdformats")) install.packages("rmdformats")
+library("rmdformats") # clean html R markdown format
+```
+
+
+
+
+# Load Data
+
+1. Compile a list of the filenames I need to read-in.
+
+```{r filenames}
+# make a list of file names of all data to load in
+my_filenames <- paste("data/CEWL_raw", 
+                   list.files(path = "data/CEWL_raw", pattern = "\\.csv$"),
+                   sep = "/")
+```
+
+2. Make a function that will read in the data from each csv, name and organize the data correctly. 
+
+```{r function to load data}
+read_CEWL_file <- function(filename) {
+  
+  dat <- read_csv(filename) %>%
+    # select only the relevant values
+    # must do this bc rbind cannot handle diff ncols
+    dplyr::select("SeqNo", 
+                  date = "Date", 
+                  time = "Time", 
+                  "Comments", 
+                  "Status", 
+                  "Termination", 
+                  CEWL_g_m2h = "TEWL [g/(m2h)]", 
+                  "CV [%]", 
+                  "SSWL [g/(m2)]",
+                  msmt_temp_C = "AmbT [C]",
+                  msmt_RH_percent = "AmbRH [%]", 
+                  "ProbeSer", 
+                  "FluxCal", 
+                  "BaseCal", 
+                  "Sensor", 
+                  "CapFactor")
+  
+  # return the dataframe for that single csv file
+  dat
+}
+```
+
+3. Apply the function I made to all of the filenames I compiled, then put all of those dataframes into one dataframe.
+
+```{r load CEWL data}
+# apply function to get data from all csvs
+all_CEWL_data <- lapply(my_filenames, read_CEWL_file) %>%
+  # paste all data files together into one df by row
+  reduce(rbind)
+summary(all_CEWL_data)
+```
+
+4. Filter out failed measurements and properly format data classes.
+
+```{r filter CEWL data}
+tidy_CEWL_data <- all_CEWL_data %>%
+  # only use completed measurements
+  dplyr::filter(Status == "Normal") %>%
+  separate(Comments, into = c("Indiv_ID", "rep_no"), sep = "-") %>% 
+  # properly format data classes
+  mutate(
+    date_time = as.POSIXct(paste(date, time), 
+                           format = "%m/%d/%y %H:%M:%S"),
+    date = mdy(date),
+    time = as.POSIXct(time, format = "%H:%M:%S"),
+    Status = factor(Status),
+    Indiv_ID = factor(Indiv_ID),
+    rep_no = factor(rep_no)
+  )
+summary(tidy_CEWL_data)
+```
+
+
+
+# Check Data
+
+
+
+## Number of Measurements
+
+
+```{r check n msmts 1}
+rep_check <- tidy_CEWL_data %>%
+                group_by(Indiv_ID, date) %>%
+                count() %>% 
+                arrange(n)
+head(rep_check)
+tail(rep_check)
+```
+
+
+
+## Measurement Times
+
+Also check that all the measurement times for a given individual on a certain date are within ~10 minutes:
+
+```{r check msmt times}
+time_check <- tidy_CEWL_data %>%
+  group_by(Indiv_ID, date) %>%
+  summarise(min_time = min(date_time),
+            max_time = max(date_time),
+            msmt_time_range_minutes = ((max_time-min_time))) %>%
+  arrange(msmt_time_range_minutes)
+head(time_check)
+tail(time_check)
+```
+
+
+
+# Replicates
+
+## Assess Variation
+
+We want the Coefficient of Variation (CV) among our technical replicates to be small. We need to calculate it to identify whether there may be outliers.
+
+```{r asses variation}
+CVs <- tidy_CEWL_data %>%
+  group_by(Indiv_ID, date) %>%
+  summarise(mean = mean(CEWL_g_m2h),
+            SD = sd(CEWL_g_m2h),
+            CV = (SD/mean) *100,
+            min = min(CEWL_g_m2h),
+            max = max(CEWL_g_m2h),
+            range = max - min
+            )
+summary(CVs)
+hist(CVs$CV)
+hist(CVs$range) 
+```
+
+
+
+
+
+
+## Find Outliers
+
+```{r}
+outs <- tidy_CEWL_data %>%
+  group_by(Indiv_ID, date) %>%
+  summarise(outs = boxplot.stats(CEWL_g_m2h)$out)
+
+outs %>% 
+  group_by(Indiv_ID, date) %>% 
+  count() %>% 
+  arrange(n)
+```
+
+oof, individuals 118, 120, and 324 have two outliers on a given date
+
+so, separate second outs into another df
+
+```{r}
+out2 <- outs %>% 
+  filter((Indiv_ID == 118 & outs == 30.43) | 
+           (Indiv_ID == 120 & outs == 21.07) | 
+           (Indiv_ID == 324 & outs == 6.98)) %>% 
+  rename(out2 = outs)
+
+out1 <- outs %>% 
+  filter(!(outs %in% out2$out2))
+
+outs_wide <- out1 %>% 
+  left_join(out2, by = c("Indiv_ID", "date"))
+
+outs_wide
+```
+
+
+
+
+
+
+
+## Remove Outliers
+
+```{r omit outliers}
+# save data for indivs with no outliers
+no_outliers <- tidy_CEWL_data %>% 
+  left_join(outs_wide, by = c("Indiv_ID", "date")) %>% 
+  filter(is.na(outs))
+
+# remove first set of outliers
+outliers_omitted1 <- tidy_CEWL_data %>% 
+  left_join(outs_wide, by = c("Indiv_ID", "date")) %>%
+  filter(complete.cases(outs)) %>% 
+  filter(!(CEWL_g_m2h == outs)) 
+
+# save outliers removed round 1
+outliers_omitted_save <- outliers_omitted1 %>% 
+  filter(is.na(out2))
+
+# remove 2nd round of outliers
+outliers_omitted2 <- outliers_omitted1 %>% 
+  filter(complete.cases(out2)) %>% 
+  filter(!(CEWL_g_m2h == out2))
+
+# put it all back together
+outliers_omitted <- no_outliers %>% 
+  rbind(outliers_omitted_save) %>% 
+  rbind(outliers_omitted2)
+
+# check
+nrow(tidy_CEWL_data) == nrow(outs) + nrow(outliers_omitted)
+```
+
+
+
+
+## Re-Assess Variation
+
+```{r re-check variation}
+new_CVs <- outliers_omitted %>%
+  group_by(Indiv_ID, date) %>%
+  summarise(mean = mean(CEWL_g_m2h),
+            SD = sd(CEWL_g_m2h),
+            CV = (SD/mean) *100,
+            min = min(CEWL_g_m2h),
+            max = max(CEWL_g_m2h),
+            range = max - min) %>%   
+  mutate(num_ID = as.numeric(as.character(Indiv_ID)))
+
+summary(new_CVs)
+hist(new_CVs$CV)
+hist(CVs$CV)
+hist(new_CVs$range) 
+hist(CVs$range) 
+```
+
+
+for mothers only:
+
+
+```{r}
+moms <- new_CVs %>% 
+  filter(num_ID %in% c(101, 102, 103, 104, 105, 107, 108, 
+                       110, 111, 112, 113, 114, 115, 116, 117, 119, 
+                       120, 123, 124, 125, 126, 127, 128, 129, 
+                       130, 131, 133, 134, 135))
+
+moms %>% 
+  ungroup() %>% 
+  summarise_at(
+    vars(SD, CV, range),
+    list(mean = mean)
+  )
+```
+
+
+for neonates only:
+
+```{r}
+neos <- new_CVs %>% 
+  filter(as.numeric(num_ID) > 290)
+
+neos %>% 
+  ungroup() %>% 
+  summarise_at(
+    vars(SD, CV, range),
+    list(mean = mean)
+  )
+```
+
+
+
+
+
+
+
+
+
+
+
+# Get Means 
+
+(outliers removed)
+
+```{r get replicate means}
+CEWL_final <- outliers_omitted %>%
+  group_by(date, Indiv_ID) %>%
+  summarise(
+    CEWL_g_m2h = mean(CEWL_g_m2h),
+    msmt_temp_C = mean(msmt_temp_C),
+    msmt_RH_percent = mean(msmt_RH_percent),
+    reps = n()
+  )
+summary(CEWL_final)
+```
+
+
+
+
+
+
+
+## Export
+
+Save the cleaned data for models and figures.
+
+```{r save clean data}
+write_rds(CEWL_final, "data/CEWL_data_all.RDS")
+write_csv(CEWL_final, "data/CEWL_data_all.csv")
+```
+
+
+
+
