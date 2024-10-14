@@ -319,16 +319,30 @@ summary(CEWL_final)
 
 
 
+# Add VPD
+
+```{r}
+CEWL_final_VPD <- CEWL_final %>% 
+  # calculate VPD
+  mutate(
+    e_s_kPa = 0.611 * exp((17.502*msmt_temp_C)/(msmt_temp_C + 240.97)), # saturation VP
+    e_a_kPa = e_s_kPa*((msmt_RH_percent/100)), # actual VP
+    VPD_kPa = e_s_kPa - e_a_kPa # VP deficit
+  )
+```
 
 
 
-## Export
+
+
+
+# Export
 
 Save the cleaned data for models and figures.
 
 ```{r save clean data}
-write_rds(CEWL_final, "data/CEWL_data_all.RDS")
-write_csv(CEWL_final, "data/CEWL_data_all.csv")
+write_rds(CEWL_final_VPD, "data/CEWL_data_all.RDS")
+write_csv(CEWL_final_VPD, "data/CEWL_data_all.csv")
 ```
 
 

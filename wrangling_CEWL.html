@@ -1345,11 +1345,22 @@ date</p>
 ##  3rd Qu.:42.76   3rd Qu.:4.000  
 ##  Max.   :49.68   Max.   :8.000  
 ## </code></pre>
-<div id="export" class="section level2">
-<h2>Export</h2>
-<p>Save the cleaned data for models and figures.</p>
-<div class="sourceCode" id="cb38"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" tabindex="-1"></a><span class="fu">write_rds</span>(CEWL_final, <span class="st">&quot;data/CEWL_data_all.RDS&quot;</span>)</span></code></pre></div>
 </div>
+<div id="add-vpd" class="section level1">
+<h1>Add VPD</h1>
+<div class="sourceCode" id="cb38"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" tabindex="-1"></a>CEWL_final_VPD <span class="ot">&lt;-</span> CEWL_final <span class="sc">%&gt;%</span> </span>
+<span id="cb38-2"><a href="#cb38-2" tabindex="-1"></a>  <span class="co"># calculate VPD</span></span>
+<span id="cb38-3"><a href="#cb38-3" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb38-4"><a href="#cb38-4" tabindex="-1"></a>    <span class="at">e_s_kPa =</span> <span class="fl">0.611</span> <span class="sc">*</span> <span class="fu">exp</span>((<span class="fl">17.502</span><span class="sc">*</span>msmt_temp_C)<span class="sc">/</span>(msmt_temp_C <span class="sc">+</span> <span class="fl">240.97</span>)), <span class="co"># saturation VP</span></span>
+<span id="cb38-5"><a href="#cb38-5" tabindex="-1"></a>    <span class="at">e_a_kPa =</span> e_s_kPa<span class="sc">*</span>((msmt_RH_percent<span class="sc">/</span><span class="dv">100</span>)), <span class="co"># actual VP</span></span>
+<span id="cb38-6"><a href="#cb38-6" tabindex="-1"></a>    <span class="at">VPD_kPa =</span> e_s_kPa <span class="sc">-</span> e_a_kPa <span class="co"># VP deficit</span></span>
+<span id="cb38-7"><a href="#cb38-7" tabindex="-1"></a>  )</span></code></pre></div>
+</div>
+<div id="export" class="section level1">
+<h1>Export</h1>
+<p>Save the cleaned data for models and figures.</p>
+<div class="sourceCode" id="cb39"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb39-1"><a href="#cb39-1" tabindex="-1"></a><span class="fu">write_rds</span>(CEWL_final_VPD, <span class="st">&quot;data/CEWL_data_all.RDS&quot;</span>)</span>
+<span id="cb39-2"><a href="#cb39-2" tabindex="-1"></a><span class="fu">write_csv</span>(CEWL_final_VPD, <span class="st">&quot;data/CEWL_data_all.csv&quot;</span>)</span></code></pre></div>
 </div>
 </div>
 
@@ -1377,10 +1388,9 @@ date</p>
        Outliers</a></li>
        <li><a href="#re-assess-variation" id="toc-re-assess-variation">Re-Assess Variation</a></li>
        </ul></li>
-       <li><a href="#get-means" id="toc-get-means">Get Means</a>
-       <ul>
+       <li><a href="#get-means" id="toc-get-means">Get Means</a></li>
+       <li><a href="#add-vpd" id="toc-add-vpd">Add VPD</a></li>
        <li><a href="#export" id="toc-export">Export</a></li>
-       </ul></li>
        </ul>
      </div>
         </div>

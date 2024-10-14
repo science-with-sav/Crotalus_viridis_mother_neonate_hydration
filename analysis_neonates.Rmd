@@ -152,14 +152,8 @@ summary(neonate_postshed_clean)
 all_data_CEWL0 <- read_rds("data/CEWL_data_all.RDS")
 
 all_data_CEWL <- all_data_CEWL0 %>% 
-  rename(CEWL_Blood_Collect_Date = date, Indiv_ID = individual_ID) %>% 
-  # calculate VPD
-  mutate(
-    e_s_kPa = 0.611 * exp((17.502*msmt_temp_C)/(msmt_temp_C + 240.97)), # saturation VP
-    e_a_kPa = e_s_kPa*((msmt_RH_percent/100)), # actual VP
-    VPD_kPa = e_s_kPa - e_a_kPa # VP deficit
-         
-  )
+  rename(CEWL_Blood_Collect_Date = date)
+
 summary(all_data_CEWL)
 ```
 
