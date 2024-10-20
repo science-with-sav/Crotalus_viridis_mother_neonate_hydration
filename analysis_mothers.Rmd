@@ -89,6 +89,22 @@ days_in_tmt_clean <- days_in_tmt %>%
 
 
 
+## Offspring
+
+
+```{r}
+neo_counts <- read_csv("data/neonate_count.csv", 
+                       col_types = "fddd") %>% 
+  mutate(
+    total_embryos = (live_neonates+dead_at_birth+slugs),
+    prop_live = live_neonates/total_embryos
+  )
+```
+
+
+
+
+
 ## Merge Dataframes
 
 
@@ -98,9 +114,18 @@ mother_data_all_final_full <- mother_data_all %>%
             by = c("Indiv_ID", "CEWL_Blood_Collect_Date")) %>% 
   left_join(days_in_tmt_clean, 
             by = c("Indiv_ID", "CEWL_Blood_Collect_Date")) %>% 
-  mutate(Hydration_Trmt = factor(Hydration_Trmt))
+  mutate(Hydration_Trmt = factor(Hydration_Trmt)) 
 
 summary(mother_data_all_final_full)
+
+mother_data_all_final_full %>% 
+  group_by(Indiv_ID) %>% 
+  count() %>% 
+  #filter(n == 4)
+  summary()
+  
+mother_data_all_final_full %>% 
+  filter(Indiv_ID %in% c(103, 115))
 ```
 
 
@@ -116,7 +141,8 @@ First, making a dataframe with the snakes that did give birth.
 birth_snakes <- mother_data_all_final_full %>%
   filter(Gave_Birth == "Y") %>% 
   # Robin removes this snake, but I don't remember why
-  filter(Indiv_ID != 117)
+  filter(Indiv_ID != 117) %>% 
+  left_join(neo_counts, by = c("Indiv_ID" = "Mother_ID"))
 
 birth_snakes_DAB <- birth_snakes %>% 
   filter(Preg_Stage == "DAB") %>% 
@@ -151,6 +177,35 @@ mothers_baseline <- mother_data_all_final_full %>%
 
 
 
+# Exp Info
+
+```{r}
+birth_snakes %>% 
+  group_by(Indiv_ID) %>% 
+  summarise(
+    min_date = min(CEWL_Blood_Collect_Date),
+    max_date = max(CEWL_Blood_Collect_Date)
+  ) %>% 
+  mutate(range = max_date - min_date) %>% 
+  arrange(range)
+no_birth_snakes %>% 
+  group_by(Indiv_ID) %>% 
+  summarise(
+    min_date = min(CEWL_Blood_Collect_Date),
+    max_date = max(CEWL_Blood_Collect_Date)
+  ) %>% 
+  mutate(range = max_date - min_date) %>% 
+  arrange(range)
+
+mother_data_all_final_full %>% 
+  summarise(
+    min_date = min(CEWL_Blood_Collect_Date),
+    max_date = max(CEWL_Blood_Collect_Date)
+  ) %>% 
+  mutate(range = max_date - min_date)
+```
+
+
 
 
 
@@ -164,6 +219,7 @@ mothers_baseline <- mother_data_all_final_full %>%
 
 
 # BASELINE CEWL (at capture)
+*add VPD*
 
 ```{r}
 baseline_cewl_1 <- lme4::lmer(data = mothers_baseline,
@@ -271,6 +327,25 @@ anova(baseline_final_mod)
 
 # EXPERIMENTAL CEWL
 
+
+## Birthing timeline?
+*add VPD*
+
+```{r}
+CEWL_LMM_birth <- lme4::lmer(data = birth_snakes,
+                      CEWL_g_m2h ~
+                        Hydration_Trmt *
+                        Days_in_Treatment +
+                        Day_Relative +
+                        Tb_at_CEWL +
+                        msmt_temp_C +
+                        msmt_RH_percent +
+                        (1|Indiv_ID))
+
+car::Anova(CEWL_LMM_birth, test = "F", type = "2")
+```
+
+
 Since day relative to birth is not significant, I can include all snakes in one model together. 
 
 ```{r}
@@ -278,6 +353,7 @@ CEWL_LMM_1 <- lme4::lmer(data = mother_data_all_final_full,
                       CEWL_g_m2h ~
                         Hydration_Trmt *
                         Days_in_Treatment +
+                        Day_Relative +
                         Tb_at_CEWL +
                         msmt_temp_C +
                         msmt_RH_percent +
@@ -285,7 +361,7 @@ CEWL_LMM_1 <- lme4::lmer(data = mother_data_all_final_full,
 
 car::vif(CEWL_LMM_1)
 drop1(CEWL_LMM_1)
-anova(CEWL_LMM_1)
+car::Anova(CEWL_LMM_1, test = "F", type = "2")
 ```
 
 
@@ -513,10 +589,41 @@ They are all equivalent.
 # EXP OSMOL - BIRTH MOTHERS
 
 ```{r}
+BirthSnakes_LMM_0 <- lme4::lmer(data = birth_snakes,
+                      Plasma_Osmol_Rep_mean ~
+                        Hydration_Trmt *
+                        (Days_in_Treatment + live_neonates) +
+                        Day_Relative +
+                        Mass_g +
+                        SVL_cm +
+                        (1|Indiv_ID))
+
+car::vif(BirthSnakes_LMM_0)
+```
+
+
+```{r}
+BirthSnakes_LMM_0.1 <- lme4::lmer(data = birth_snakes,
+                      Plasma_Osmol_Rep_mean ~
+                        Hydration_Trmt *
+                        Days_in_Treatment + 
+                        live_neonates +
+                        Day_Relative +
+                        Mass_g +
+                        SVL_cm +
+                        (1|Indiv_ID))
+
+car::vif(BirthSnakes_LMM_0.1)
+drop1(BirthSnakes_LMM_0.1)
+anova(BirthSnakes_LMM_0.1)
+```
+
+
+```{r}
 BirthSnakes_LMM_1 <- lme4::lmer(data = birth_snakes,
                       Plasma_Osmol_Rep_mean ~
                         Hydration_Trmt *
-                        Days_in_Treatment +
+                        Days_in_Treatment + 
                         Day_Relative +
                         Mass_g +
                         SVL_cm +
@@ -528,6 +635,17 @@ anova(BirthSnakes_LMM_1)
 
 
 ```{r}
+BirthSnakes_LMM_2a <- lme4::lmer(data = birth_snakes,
+                      Plasma_Osmol_Rep_mean ~
+                        Hydration_Trmt *
+                        Days_in_Treatment +
+                        Day_Relative +
+                        SVL_cm +
+                        (1|Indiv_ID))
+
+drop1(BirthSnakes_LMM_2a)
+anova(BirthSnakes_LMM_2a)
+
 BirthSnakes_LMM_2 <- lme4::lmer(data = birth_snakes,
                       Plasma_Osmol_Rep_mean ~
                         Hydration_Trmt *
@@ -543,9 +661,8 @@ anova(BirthSnakes_LMM_2)
 ```{r}
 BirthSnakes_LMM_3 <- lme4::lmer(data = birth_snakes,
                       Plasma_Osmol_Rep_mean ~
-                        Hydration_Trmt +
+                        Hydration_Trmt *
                         Days_in_Treatment +
-                        Day_Relative +
                         (1|Indiv_ID))
 
 drop1(BirthSnakes_LMM_3)
@@ -555,8 +672,8 @@ anova(BirthSnakes_LMM_3)
 ```{r}
 BirthSnakes_LMM_4 <- lme4::lmer(data = birth_snakes,
                       Plasma_Osmol_Rep_mean ~
+                        Hydration_Trmt + 
                         Days_in_Treatment +
-                        Day_Relative +
                         (1|Indiv_ID))
 
 drop1(BirthSnakes_LMM_4)
@@ -567,10 +684,9 @@ anova(BirthSnakes_LMM_4)
 ```{r}
 BirthSnakes_LMM_5 <- lme4::lmer(data = birth_snakes,
                       Plasma_Osmol_Rep_mean ~
-                        Day_Relative +
+                        Days_in_Treatment +
                         (1|Indiv_ID))
 
-drop1(BirthSnakes_LMM_5)
 anova(BirthSnakes_LMM_5)
 ```
 
@@ -846,6 +962,16 @@ summary(tmt_befaft)
 tmt_befaft %>% 
   group_by(Indiv_ID) %>% 
   count()
+
+# check time in tmt
+tmt_befaft %>% 
+  group_by(Indiv_ID) %>% 
+  summarise(
+    min_date = min(CEWL_Blood_Collect_Date),
+    max_date = max(CEWL_Blood_Collect_Date)
+  ) %>% 
+  mutate(range = as.numeric(max_date - min_date)) %>% 
+  summary()
 ```
 
 
