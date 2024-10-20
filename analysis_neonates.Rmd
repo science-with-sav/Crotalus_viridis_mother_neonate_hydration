@@ -816,6 +816,7 @@ DAB_CEWL_LMM_BEST_full <- lmerTest::lmer(data = dab_all,
                         (1|Mother_ID))
 
 summary(DAB_CEWL_LMM_BEST_full)
+r.squaredGLMM(DAB_CEWL_LMM_BEST_full)
 car::Anova(DAB_CEWL_LMM_BEST_full, test = "F", type = "2")
 ```
 
@@ -998,6 +999,10 @@ ggplot() +
     legend.position.inside = c(0.75, 0.15),
     legend.background = element_blank()
   ) +
+  # annotate(
+  #   geom = "text", label = expression(''*R^2*'=0.5'),
+  #   x = 2, y = 13, size = 3
+  # ) +
   scale_x_continuous(
     limits = c(0, 30),
     breaks = c(0, 10, 20, 30),
@@ -1805,6 +1810,7 @@ DAB_OSMOL_emmeans_CI <- tidy(confint(DAB_OSMOL_emmeans_tmt))
 
 ```{r}
 summary(DAB_OSMOL_LMM_BEST_mom)
+r.squaredGLMM(DAB_OSMOL_LMM_BEST_mom)
 ```
 
 
@@ -2066,7 +2072,7 @@ ggplot() +
   ) +
   labs(
     x = NULL, 
-    y = expression('Clutch Osmolality (mmol '*kg^-1*')'),
+    y = expression('Osmolality (mmol '*kg^-1*')'),
     color = "Treatment"
   ) +
   scale_y_continuous(
@@ -2173,7 +2179,7 @@ ggsave(
   dpi = 600,
   units = "mm",
   width = 80,
-  height = 180
+  height = 120
 )
 ```
 
@@ -2732,7 +2738,7 @@ ggplot(
   ) +
   
   theme(legend.position = "inside",
-        legend.position.inside = c(0.25, 0.2),
+        legend.position.inside = c(0.25, 0.15),
         legend.background = element_blank()) +
   
   # labels
@@ -2788,7 +2794,7 @@ ggplot(
   ) +
   
   theme(legend.position = "inside",
-        legend.position.inside = c(0.25, 0.8),
+        legend.position.inside = c(0.25, 0.85),
         legend.background = element_blank()) +
   
   # labels
@@ -2840,7 +2846,7 @@ ggplot(
   ) +
   
   theme(legend.position = "inside",
-        legend.position.inside = c(0.25, 0.8),
+        legend.position.inside = c(0.25, 0.85),
         legend.background = element_blank()) +
   
   # labels
@@ -2873,13 +2879,13 @@ ggarrange(
 ) -> neo_tmt_effects
 
 ggsave(
-  filename = "Fig4_neonate_tmt_effects.pdf",
+  filename = "Fig7_neonate_tmt_effects.pdf",
   plot = neo_tmt_effects,
   path = "./results_figures",
   device = "pdf",
   dpi = 600,
   units = "mm",
-  width = 150,
+  width = 160,
   height = 180
 )
 ```
