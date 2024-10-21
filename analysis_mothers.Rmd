@@ -37,6 +37,36 @@ library("ggpubr") # figure arranging & exporting
 
 
 
+# Figure Formatting
+
+```{r}
+my_ggplot_theme <- theme_classic() + # start with a preset theme to make things easy
+                     theme(axis.title = element_text(size = 10), # text size for axis labels
+                           axis.text = element_text(size = 8, # text size for axis values
+                                                    color = "black", # need to specifically set color
+                                                    family = "sans"), # and family
+                           legend.title = element_text(size = 8), # text size for the legend title
+                           legend.text = element_text(size = 8), # text size for legend items
+                           text = element_text(color = "black", # color for all text (except axis values)
+                                               family = "sans") # family
+                           )
+```
+
+Now, apply the theme. This sets the theme for the entire Rmd document.
+
+```{r}
+theme_set(my_ggplot_theme)
+```
+
+
+
+
+
+
+
+
+
+
 
 # Load & Tidy Data
 
@@ -1476,32 +1506,6 @@ emmeans(delta_cewl_lm, pairwise ~ Hydration_Trmt)
 
 
 
-
-
-
-
-
-
-# Figure Formatting
-
-```{r}
-my_ggplot_theme <- theme_classic() + # start with a preset theme to make things easy
-                     theme(axis.title = element_text(size = 10), # text size for axis labels
-                           axis.text = element_text(size = 8, # text size for axis values
-                                                    color = "black", # need to specifically set color
-                                                    family = "sans"), # and family
-                           legend.title = element_text(size = 8), # text size for the legend title
-                           legend.text = element_text(size = 8), # text size for legend items
-                           text = element_text(color = "black", # color for all text (except axis values)
-                                               family = "sans") # family
-                           )
-```
-
-Now, apply the theme. This sets the theme for the entire Rmd document.
-
-```{r}
-theme_set(my_ggplot_theme)
-```
 
 
 

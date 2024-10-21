@@ -397,18 +397,23 @@ car::Anova(slug_mom_mass_lm, type = "2", test = "F")
 
 
 
+
+## Live ~ Tmt * Mass
+
+
 ```{r}
 live_neo_mom_mass_lm <- lm(data = dab_clutch_mom, 
                   live_neonates ~ Treatment * Mother_mass)
+
 summary(live_neo_mom_mass_lm)
+car::Anova(live_neo_mom_mass_lm, type = "2", test = "F")
+```
+
+
+```{r}
 emt <- emtrends(live_neo_mom_mass_lm, "Treatment", var = "Mother_mass")
 tidy(emt)
 pairs(emt)
-car::Anova(live_neo_mom_mass_lm, type = "2", test = "F")
-
-plot(effect("Treatment:Mother_mass", live_neo_mom_mass_lm), multiline = T)
-
-summary(dab_clutch_mom$Mother_mass)
 ```
 
 
@@ -419,6 +424,58 @@ summary(dab_clutch_mom$Mother_mass)
 
 
 
+
+## Plot
+
+
+```{r}
+plot(effect("Treatment:Mother_mass", live_neo_mom_mass_lm), multiline = T)
+```
+
+
+
+```{r}
+ggplot(
+  dab_clutch_mom,
+  aes(x = Mother_mass, y = live_neonates, color = Treatment)
+) +
+  geom_point() +
+  geom_text(
+    aes(label = Mother_ID),
+    nudge_x = 0.25, nudge_y = 0.25, 
+    check_overlap = T, show.legend = F
+  ) +
+  geom_smooth(
+    method = "lm",
+    se = F,
+    formula = 'y~x'
+  )
+neo_counts %>% 
+  filter(slugs > 0 | dead_at_birth > 0)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ```{r}
 prop_live_mom_mass_lm <- lm(data = dab_clutch_mom, 
                   prop_live ~ Treatment * Mother_mass)
@@ -426,6 +483,11 @@ summary(prop_live_mom_mass_lm)
 car::Anova(prop_live_mom_mass_lm, type = "2", test = "F")
 ```
 
+
+
+
+
+## Live ~ SVL
 
 ```{r}
 live_neo_mom_SVL_lm <- lm(data = dab_clutch_mom, 
@@ -1021,7 +1083,7 @@ export it:
 
 ```{r}
 ggsave(
-  filename = "Fig5_neonate_mother_CEWL.pdf",
+  filename = "Fig4_neonate_mother_CEWL.pdf",
   plot = neo_mom_CEWL_partreg,
   path = "./results_figures",
   device = "pdf",
@@ -1203,7 +1265,7 @@ DAB_osml_LM_1 <- lm(data = dab_clutch_mom,
                      
 car::vif(DAB_osml_LM_1, type = "predictor")
 drop1(DAB_osml_LM_1)
-anova(DAB_osml_LM_1, type = "2")
+anova(DAB_osml_LM_1)
 ```
 
 
@@ -1915,6 +1977,31 @@ neo_mom_osml
 
 
 
+
+export it:
+
+```{r}
+ggsave(
+  filename = "Fig5_neonate_mother_osml.pdf",
+  plot = neo_mom_osml,
+  path = "./results_figures",
+  device = "pdf",
+  dpi = 600,
+  units = "mm",
+  width = 150,
+  height = 100
+)
+```
+
+
+
+
+
+
+
+
+
+
 ## osml ~ tmt * days
 
 
@@ -1980,30 +2067,6 @@ neo_tmt_osml
 
 
 
-export it:
-
-```{r}
-ggsave(
-  filename = "Fig6a_neonate_mother_osml.pdf",
-  plot = neo_mom_osml,
-  path = "./results_figures",
-  device = "pdf",
-  dpi = 600,
-  units = "mm",
-  width = 150,
-  height = 100
-)
-ggsave(
-  filename = "Fig6b_neonate_mother_osml.pdf",
-  plot = neo_tmt_osml,
-  path = "./results_figures",
-  device = "pdf",
-  dpi = 600,
-  units = "mm",
-  width = 150,
-  height = 100
-)
-```
 
 
 
@@ -2020,11 +2083,7 @@ ggsave(
 
 
 
-
-
-
-
-# PUB FIG 2 DAB
+# PUB FIG 3 DAB
 
 ## Osmolality
 
@@ -2172,7 +2231,7 @@ ggarrange(
 ) -> dab_diffs
 
 ggsave(
-  filename = "Fig4_neonate_dab_diffs.pdf",
+  filename = "Fig3_neonate_dab_diffs.pdf",
   plot = dab_diffs,
   path = "./results_figures",
   device = "pdf",
@@ -2402,7 +2461,7 @@ date_tmt <- dab_ps_compare %>%
 
 shedtimelm <- lm(data = date_tmt, range ~ Treatment)
 summary(shedtimelm)
-anova(shedtimelm, test = "F", type = "2")
+anova(shedtimelm)
 ```
 
 
@@ -2426,7 +2485,7 @@ anova(shedtimelm, test = "F", type = "2")
 
 
 
-# PUB FIG 4
+# PUB FIG 6
 
 
 ## mass raw
@@ -2879,7 +2938,7 @@ ggarrange(
 ) -> neo_tmt_effects
 
 ggsave(
-  filename = "Fig7_neonate_tmt_effects.pdf",
+  filename = "Fig6_neonate_tmt_effects.pdf",
   plot = neo_tmt_effects,
   path = "./results_figures",
   device = "pdf",
