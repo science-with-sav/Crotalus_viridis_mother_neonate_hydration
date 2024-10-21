@@ -631,7 +631,7 @@ DAB_CEWL_LMM_0 <- lme4::lmer(data = dab_all,
                      
 car::vif(DAB_CEWL_LMM_0)
 drop1(DAB_CEWL_LMM_0)
-car::Anova(DAB_CEWL_LMM_0, test = "F", type = "2")
+anova(DAB_CEWL_LMM_0, test = "F", type = "2")
 ```
 
 
@@ -675,7 +675,7 @@ DAB_CEWL_LMM_1a <- lme4::lmer(data = dab_all,
                      
 car::vif(DAB_CEWL_LMM_1a)
 drop1(DAB_CEWL_LMM_1a)
-car::Anova(DAB_CEWL_LMM_1a, test = "F", type = "2")
+anova(DAB_CEWL_LMM_1a, test = "F", type = "2")
 ```
 
 
@@ -698,7 +698,7 @@ DAB_CEWL_LMM_2v <- lme4::lmer(data = dab_all,
                      
 summary(DAB_CEWL_LMM_2v)
 drop1(DAB_CEWL_LMM_2)
-car::Anova(DAB_CEWL_LMM_2, test = "F", type = "2")
+anova(DAB_CEWL_LMM_2, test = "F", type = "2")
 ```
 
 
@@ -717,7 +717,7 @@ DAB_CEWL_LMM_3int <- lme4::lmer(data = dab_all,
                      
 summary(DAB_CEWL_LMM_3)
 drop1(DAB_CEWL_LMM_3)
-car::Anova(DAB_CEWL_LMM_3, test = "F", type = "2")
+anova(DAB_CEWL_LMM_3, test = "F", type = "2")
 ```
 
 ```{r}
@@ -729,7 +729,7 @@ DAB_CEWL_LMM_4 <- lme4::lmer(data = dab_all,
                      
 summary(DAB_CEWL_LMM_4)
 drop1(DAB_CEWL_LMM_4)
-car::Anova(DAB_CEWL_LMM_4, test = "F", type = "2")
+anova(DAB_CEWL_LMM_4, test = "F", type = "2")
 ```
 
 
@@ -740,7 +740,7 @@ DAB_CEWL_LMM_5 <- lme4::lmer(data = dab_all,
                         (1|Mother_ID))
                      
 summary(DAB_CEWL_LMM_5)
-car::Anova(DAB_CEWL_LMM_5, test = "F", type = "2")
+anova(DAB_CEWL_LMM_5, test = "F", type = "2")
 ```
 
 ```{r}
@@ -796,7 +796,7 @@ DAB_CEWL_LMM_BEST_simple <- lmerTest::lmer(data = dab_all,
                           (1|Mother_ID))
 
 summary(DAB_CEWL_LMM_BEST_simple)
-car::Anova(DAB_CEWL_LMM_BEST_simple, test = "F", type = "2")
+anova(DAB_CEWL_LMM_BEST_simple, test = "F", type = "2")
 
 emmeans(DAB_CEWL_LMM_BEST_simple, pairwise ~ Treatment)
 DAB_CEWL_emmeans <- emmeans(DAB_CEWL_LMM_BEST_simple, "Treatment")
@@ -817,7 +817,7 @@ DAB_CEWL_LMM_BEST_full <- lmerTest::lmer(data = dab_all,
 
 summary(DAB_CEWL_LMM_BEST_full)
 r.squaredGLMM(DAB_CEWL_LMM_BEST_full)
-car::Anova(DAB_CEWL_LMM_BEST_full, test = "F", type = "2")
+anova(DAB_CEWL_LMM_BEST_full, test = "F", type = "2")
 ```
 
 
@@ -1203,7 +1203,7 @@ DAB_osml_LM_1 <- lm(data = dab_clutch_mom,
                      
 car::vif(DAB_osml_LM_1, type = "predictor")
 drop1(DAB_osml_LM_1)
-car::Anova(DAB_osml_LM_1, type = "2")
+anova(DAB_osml_LM_1, type = "2")
 ```
 
 
@@ -1403,7 +1403,7 @@ DAB_OSMOL_LMM_1b <- lme4::lmer(data = dab_all,
 
 car::vif(DAB_OSMOL_LMM_1b)                     
 drop1(DAB_OSMOL_LMM_1b)
-car::Anova(DAB_OSMOL_LMM_1b, test = "F", type = "2")
+anova(DAB_OSMOL_LMM_1b, test = "F", type = "2")
 ```
 
 
@@ -1417,7 +1417,7 @@ test_live <- lme4::lmer(data = dab_all,
                       live_neonates + 
                         (1|Mother_ID))
 summary(test_live)
-car::Anova(test_live, test = "F", type = "2")
+anova(test_live, test = "F", type = "2")
 
 test_total <- lme4::lmer(data = dab_all,
                     Plasma_Osmol_Rep_mean ~ 
@@ -1426,7 +1426,7 @@ test_total <- lme4::lmer(data = dab_all,
                       total_embryos + 
                         (1|Mother_ID))
 summary(test_total)
-car::Anova(test_total, test = "F", type = "2")
+anova(test_total, test = "F", type = "2")
 ```
 
 
@@ -1454,7 +1454,7 @@ DAB_OSMOL_LMM_1c <- lme4::lmer(data = dab_all,
 
 car::vif(DAB_OSMOL_LMM_1c)                     
 drop1(DAB_OSMOL_LMM_1c)
-car::Anova(DAB_OSMOL_LMM_1c, test = "F", type = "2")
+anova(DAB_OSMOL_LMM_1c, test = "F", type = "2")
 ```
 
 
@@ -1468,7 +1468,7 @@ DAB_OSMOL_LMM_2 <- lme4::lmer(data = dab_all,
                         (1|Mother_ID))
 
 drop1(DAB_OSMOL_LMM_2)
-car::Anova(DAB_OSMOL_LMM_2, test = "F", type = "2")
+anova(DAB_OSMOL_LMM_2, test = "F", type = "2")
 ```
 
 
@@ -1489,8 +1489,8 @@ DAB_OSMOL_LMM_3a <- lme4::lmer(data = dab_all,
 
 summary(DAB_OSMOL_LMM_3)
 drop1(DAB_OSMOL_LMM_3)
-car::Anova(DAB_OSMOL_LMM_3, test = "F", type = "2")
-car::Anova(DAB_OSMOL_LMM_3a, test = "F", type = "2")
+anova(DAB_OSMOL_LMM_3, test = "F", type = "2")
+anova(DAB_OSMOL_LMM_3a, test = "F", type = "2")
 ```
 
 
@@ -1632,7 +1632,7 @@ DAB_OSMOL_tmt_LMM_4 <- lme4::lmer(data = dab_all,
                         (1|Mother_ID))
 
 drop1(DAB_OSMOL_tmt_LMM_4)
-car::Anova(DAB_OSMOL_tmt_LMM_4, test = "F", type = "2")
+anova(DAB_OSMOL_tmt_LMM_4, test = "F", type = "2")
 ```
 
 
@@ -1705,7 +1705,7 @@ DAB_OSMOL_mom_LMM_2 <- lme4::lmer(data = dab_all,
                         (1|Mother_ID))
 
 drop1(DAB_OSMOL_mom_LMM_2)
-car::Anova(DAB_OSMOL_mom_LMM_2, test = "F", type = "2")
+anova(DAB_OSMOL_mom_LMM_2, test = "F", type = "2")
 ```
 
 
@@ -1726,7 +1726,7 @@ DAB_OSMOL_mom_LMM_4 <- lme4::lmer(data = dab_all,
                       Plasma_Osmol_Rep_mean ~ 
                       Mother_osml +
                         (1|Mother_ID))
-car::Anova(DAB_OSMOL_mom_LMM_4, test = "F", type = "2")
+anova(DAB_OSMOL_mom_LMM_4, test = "F", type = "2")
 ```
 
 ```{r}
@@ -1782,8 +1782,8 @@ DAB_OSMOL_LMM_BEST_mom <- lmerTest::lmer(data = dab_all,
                       Mother_osml +
                         (1|Mother_ID))
 
-car::Anova(DAB_OSMOL_LMM_BEST_tmt, test = "F", type = "2")
-car::Anova(DAB_OSMOL_LMM_BEST_mom, test = "F", type = "2")
+anova(DAB_OSMOL_LMM_BEST_tmt, test = "F", type = "2")
+anova(DAB_OSMOL_LMM_BEST_mom, test = "F", type = "2")
 ```
 
 
@@ -2259,7 +2259,7 @@ mass_means <- emmeans(mass_lm_time_tmt, "Treatment", by = "timept")
 mass_lm_time_tmt_CI <- tidy(confint(mass_means))
 #mass_lm_time_tmt_CI <- tidy(mass_means_time$emmeans) # either would work
 
-car::Anova(mass_lm_time_tmt, test = "F", type = "2")
+anova(mass_lm_time_tmt, test = "F", type = "2")
 ```
 
 
@@ -2295,7 +2295,7 @@ osml_means_tmt$contrasts
 osml_means <- emmeans(osml_lm_time_tmt, "Treatment", by = "timept")
 osml_lm_time_tmt_CI <- tidy(confint(osml_means))
 
-car::Anova(osml_lm_time_tmt, test = "F", type = "2")
+anova(osml_lm_time_tmt, test = "F", type = "2")
 ```
 
 
@@ -2334,7 +2334,7 @@ cewl_means_tmt$contrasts
 cewl_means <- emmeans(cewl_lm_time_tmt, "Treatment", by = "timept")
 cewl_lm_time_tmt_CI <- tidy(confint(cewl_means))
 
-car::Anova(cewl_lm_time_tmt, test = "F", type = "2")
+anova(cewl_lm_time_tmt, test = "F", type = "2")
 ```
 
 
@@ -2378,7 +2378,7 @@ tb_means_tmt$contrasts
 tb_means <- emmeans(tb_lm_time_tmt, "Treatment", by = "timept")
 tb_lm_time_tmt_CI <- tidy(confint(tb_means))
 
-car::Anova(tb_lm_time_tmt, test = "F", type = "2")
+anova(tb_lm_time_tmt, test = "F", type = "2")
 ```
 
 
@@ -2402,7 +2402,7 @@ date_tmt <- dab_ps_compare %>%
 
 shedtimelm <- lm(data = date_tmt, range ~ Treatment)
 summary(shedtimelm)
-car::Anova(shedtimelm, test = "F", type = "2")
+anova(shedtimelm, test = "F", type = "2")
 ```
 
 
