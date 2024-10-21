@@ -21,12 +21,15 @@ knitr::opts_chunk$set(include = TRUE, message = FALSE, warning = FALSE)
 ```{r}
 library("tidyverse") # for dplyr workflow + ggplot
 library("rmdformats") # pretty Rmd format
-library("lme4")
-library("lmerTest")
-library("emmeans")
-library("broom")
-library("AICcmodavg")
-library("ggpubr")
+library("lme4") # LMM
+library("lmerTest") # LMM stats
+library("car") # vif, anova
+library("emmeans") # pairwise comparisons
+library("broom") # clean stats presentation
+library("AICcmodavg") # model selection
+library("MuMIn") # GLMM R-squared
+library("effects") # partial regression plots
+library("ggpubr") # figure arranging & exporting
 ```
 
 
@@ -114,7 +117,12 @@ mother_data_all_final_full <- mother_data_all %>%
             by = c("Indiv_ID", "CEWL_Blood_Collect_Date")) %>% 
   left_join(days_in_tmt_clean, 
             by = c("Indiv_ID", "CEWL_Blood_Collect_Date")) %>% 
-  mutate(Hydration_Trmt = factor(Hydration_Trmt)) 
+  mutate(
+    Hydration_Trmt = factor(Hydration_Trmt),
+    e_s_kPa = 0.611 * exp((17.502*msmt_temp_C)/(msmt_temp_C + 240.97)), # saturation VP
+    e_a_kPa = e_s_kPa*((msmt_RH_percent/100)), # actual VP
+    VPD_kPa = e_s_kPa - e_a_kPa # VP deficit
+  ) 
 
 summary(mother_data_all_final_full)
 
@@ -219,7 +227,7 @@ mother_data_all_final_full %>%
 
 
 # BASELINE CEWL (at capture)
-*add VPD*
+
 
 ```{r}
 baseline_cewl_1 <- lme4::lmer(data = mothers_baseline,
@@ -227,13 +235,27 @@ baseline_cewl_1 <- lme4::lmer(data = mothers_baseline,
                         Tb_at_CEWL +
                         msmt_temp_C +
                         msmt_RH_percent +
+                        VPD_kPa +
                         Mass_g +
                         SVL_cm +
                         (1|CEWL_Blood_Collect_Date))
                     
 car::vif(baseline_cewl_1)
-drop1(baseline_cewl_1)
-anova(baseline_cewl_1)
+```
+
+```{r}
+baseline_cewl_1a <- lme4::lmer(data = mothers_baseline,
+                      CEWL_g_m2h ~
+                        Tb_at_CEWL +
+                        msmt_temp_C +
+                        VPD_kPa +
+                        Mass_g +
+                        SVL_cm +
+                        (1|CEWL_Blood_Collect_Date))
+                    
+car::vif(baseline_cewl_1a)
+drop1(baseline_cewl_1a)
+anova(baseline_cewl_1a, test = "F", type = "2")
 ```
 
 
@@ -242,31 +264,47 @@ baseline_cewl_2 <- lme4::lmer(data = mothers_baseline,
                       CEWL_g_m2h ~
                         Tb_at_CEWL +
                         msmt_temp_C +
-                        msmt_RH_percent +
+                        VPD_kPa +
+                        Mass_g +
                         (1|CEWL_Blood_Collect_Date))
                     
 drop1(baseline_cewl_2)
-anova(baseline_cewl_2)
+anova(baseline_cewl_2, test = "F", type = "2")
 ```
 
 
 ```{r}
 baseline_cewl_3 <- lme4::lmer(data = mothers_baseline,
                       CEWL_g_m2h ~
+                        Tb_at_CEWL +
                         msmt_temp_C +
-                        msmt_RH_percent +
+                        VPD_kPa +
                         (1|CEWL_Blood_Collect_Date))
                     
 drop1(baseline_cewl_3)
-anova(baseline_cewl_3)
+anova(baseline_cewl_3, test = "F", type = "2")
 ```
 
 
 ```{r}
 baseline_cewl_4 <- lme4::lmer(data = mothers_baseline,
                       CEWL_g_m2h ~
-                        msmt_RH_percent +
+                        msmt_temp_C +
+                        VPD_kPa +
                         (1|CEWL_Blood_Collect_Date))
+                    
+drop1(baseline_cewl_4)
+anova(baseline_cewl_4, test = "F", type = "2")
+```
+
+
+```{r}
+baseline_cewl_5 <- lme4::lmer(data = mothers_baseline,
+                      CEWL_g_m2h ~
+                        msmt_temp_C +
+                        (1|CEWL_Blood_Collect_Date))
+                    
+anova(baseline_cewl_5, test = "F", type = "2")
 ```
 
 
@@ -281,8 +319,9 @@ baseline_cewl_null <- lme4::lmer(data = mothers_baseline,
 
 
 ```{r}
-baseline_cewl_mods <- list(baseline_cewl_1, baseline_cewl_2, 
+baseline_cewl_mods <- list(baseline_cewl_1a, baseline_cewl_2, 
                            baseline_cewl_3, baseline_cewl_4,
+                           baseline_cewl_5,
                            baseline_cewl_null)
 
 #specify model names
@@ -290,6 +329,7 @@ baeline_cewl_mod_names_all <- c('model1',
                     'model2',
                     'model3',
                     'model4',
+                    'model5',
                     'modelnull')
 
 #calculate AIC of each model
@@ -309,11 +349,12 @@ Best model was 3 which included:
 baseline_final_mod <- lmerTest::lmer(data = mothers_baseline,
                       CEWL_g_m2h ~
                         msmt_temp_C +
-                        msmt_RH_percent +
+                        VPD_kPa +
                         (1|CEWL_Blood_Collect_Date))
 
 summary(baseline_final_mod)
-anova(baseline_final_mod)
+anova(baseline_final_mod, test = "F", type = "2")
+car::Anova(baseline_final_mod, test = "F", type = "2")
 ```
 
 
@@ -328,8 +369,7 @@ anova(baseline_final_mod)
 # EXPERIMENTAL CEWL
 
 
-## Birthing timeline?
-*add VPD*
+Birthing timeline?
 
 ```{r}
 CEWL_LMM_birth <- lme4::lmer(data = birth_snakes,
@@ -339,10 +379,10 @@ CEWL_LMM_birth <- lme4::lmer(data = birth_snakes,
                         Day_Relative +
                         Tb_at_CEWL +
                         msmt_temp_C +
-                        msmt_RH_percent +
+                        VPD_kPa +
                         (1|Indiv_ID))
 
-car::Anova(CEWL_LMM_birth, test = "F", type = "2")
+anova(CEWL_LMM_birth, type = "2")
 ```
 
 
@@ -353,15 +393,14 @@ CEWL_LMM_1 <- lme4::lmer(data = mother_data_all_final_full,
                       CEWL_g_m2h ~
                         Hydration_Trmt *
                         Days_in_Treatment +
-                        Day_Relative +
                         Tb_at_CEWL +
                         msmt_temp_C +
-                        msmt_RH_percent +
+                        VPD_kPa +
                         (1|Indiv_ID))
 
 car::vif(CEWL_LMM_1)
 drop1(CEWL_LMM_1)
-car::Anova(CEWL_LMM_1, test = "F", type = "2")
+anova(CEWL_LMM_1, test = "F", type = "2")
 ```
 
 
@@ -372,10 +411,10 @@ CEWL_LMM_2 <- lme4::lmer(data = mother_data_all_final_full,
                         Days_in_Treatment +
                         Tb_at_CEWL +
                         msmt_temp_C +
-                        msmt_RH_percent +
+                        VPD_kPa +
                         (1|Indiv_ID))
 drop1(CEWL_LMM_2)
-anova(CEWL_LMM_2)
+anova(CEWL_LMM_2, test = "F", type = "2")
 ```
 
 
@@ -385,11 +424,10 @@ CEWL_LMM_3 <- lme4::lmer(data = mother_data_all_final_full,
                         Hydration_Trmt +
                         Days_in_Treatment +
                         msmt_temp_C +
-                        msmt_RH_percent +
+                        VPD_kPa +
                         (1|Indiv_ID))
-
 drop1(CEWL_LMM_3)
-anova(CEWL_LMM_3)
+anova(CEWL_LMM_3, test = "F", type = "2")
 ```
 
 ```{r}
@@ -397,11 +435,11 @@ CEWL_LMM_4 <- lme4::lmer(data = mother_data_all_final_full,
                       CEWL_g_m2h ~
                         Hydration_Trmt +
                         msmt_temp_C +
-                        msmt_RH_percent +
+                        VPD_kPa +
                         (1|Indiv_ID))
 
 drop1(CEWL_LMM_4)
-anova(CEWL_LMM_4)
+anova(CEWL_LMM_4, test = "F", type = "2")
 ```
 
 
@@ -409,18 +447,18 @@ anova(CEWL_LMM_4)
 CEWL_LMM_5 <- lme4::lmer(data = mother_data_all_final_full,
                       CEWL_g_m2h ~
                         msmt_temp_C +
-                        msmt_RH_percent +
+                        VPD_kPa +
                         (1|Indiv_ID))
 
 drop1(CEWL_LMM_5)
-anova(CEWL_LMM_5)
+summary(CEWL_LMM_5)
 ```
 
 
 ```{r}
 CEWL_LMM_6 <- lme4::lmer(data = mother_data_all_final_full,
                       CEWL_g_m2h ~
-                        msmt_RH_percent +
+                        msmt_temp_C +
                         (1|Indiv_ID))
 ```
 
@@ -465,16 +503,18 @@ cewl_AICc_all
 
 The best model is model 4.
 
+**I believe that the boundary is singular is due to the very small amount of variation explained by the random effect**.
 ```{r}
 CEWL_LMM_best <- lmerTest::lmer(data = mother_data_all_final_full,
                       CEWL_g_m2h ~
                         Hydration_Trmt +
                         msmt_temp_C +
-                        msmt_RH_percent +
+                        VPD_kPa +
                         (1|Indiv_ID))
 
 summary(CEWL_LMM_best)
-anova(CEWL_LMM_best, type = "3", ddf = "Kenward-Roger")
+anova(CEWL_LMM_best, test = "F", type = "2")
+r.squaredGLMM(CEWL_LMM_best)
 ```
 
 
@@ -485,6 +525,194 @@ anova(CEWL_LMM_best, type = "3", ddf = "Kenward-Roger")
 plot(CEWL_LMM_best)
 shapiro.test(residuals(CEWL_LMM_best))
 ```
+
+
+
+
+## Partial Regression
+
+
+```{r}
+plot(effect("Hydration_Trmt", CEWL_LMM_best))
+plot(effect("msmt_temp_C", CEWL_LMM_best))
+plot(effect("VPD_kPa", CEWL_LMM_best))
+```
+
+
+```{r}
+temp_effects_data <- summary(effect("msmt_temp_C", CEWL_LMM_best))
+
+temp_effects_df <- data_frame(
+  meanval = temp_effects_data$effect,
+  lowCI = temp_effects_data$lower,
+  highCI = temp_effects_data$upper
+) %>% 
+  mutate(msmt_temp_C = c(23, 24, 25, 26, 27))
+
+temp_effects_df
+```
+
+
+
+```{r}
+VPD_effects_data <- summary(effect("VPD_kPa", CEWL_LMM_best))
+
+VPD_effects_df <- data_frame(
+  meanval = VPD_effects_data$effect,
+  lowCI = VPD_effects_data$lower,
+  highCI = VPD_effects_data$upper
+) %>% 
+  mutate(VPD_kPa = c(1.5, 1.7, 1.9, 2.1, 2.3))
+
+VPD_effects_df
+```
+
+
+
+
+
+
+# PUB FIGURE
+
+
+## CEWL ~ temp
+
+
+```{r}
+ggplot() +
+  geom_point(
+    data = mother_data_all_final_full, 
+    aes(x = msmt_temp_C, y = CEWL_g_m2h,
+        color = Hydration_Trmt, shape = Hydration_Trmt)
+    ) +
+  geom_ribbon(
+    data = temp_effects_df,
+    aes(x = msmt_temp_C, ymin = lowCI, ymax = highCI),
+    alpha = 0.2
+  ) +
+  geom_line(
+    data = temp_effects_df,
+    aes(x = msmt_temp_C, y = meanval),
+    color = "black",
+    linewidth = 1
+  ) +
+  
+  # prettys 
+  scale_color_manual(
+    values = c("darkgoldenrod2", "royalblue4"), 
+    labels = c("C" = "Control", "W" = "Hydration"), 
+    name = NULL
+  ) +
+  scale_shape_manual(
+    values = c(15, 17), 
+    labels = c("C" = "Control", "W" = "Hydration"),
+    name = NULL
+  ) +
+  theme(
+    legend.position = "inside",
+    legend.position.inside = c(0.18, 0.85),
+    legend.background = element_blank()
+  ) +
+  scale_x_continuous(
+    name = "Ambient Temperature (\u00b0C)" # unicode for degree symbol
+  ) +
+  scale_y_continuous(
+    breaks = c(0, 10, 20, 30),
+    name = expression('CEWL (g '*m^-2*' '*h^-1*')')
+  ) -> CEWL_temp_lm
+CEWL_temp_lm
+```
+
+
+
+
+
+## CEWL ~ VPD
+
+```{r}
+ggplot() +
+  geom_point(
+    data = mother_data_all_final_full, 
+    aes(x = VPD_kPa, y = CEWL_g_m2h,
+        color = Hydration_Trmt, shape = Hydration_Trmt)
+    ) +
+  geom_ribbon(
+    data = VPD_effects_df,
+    aes(x = VPD_kPa, ymin = lowCI, ymax = highCI),
+    alpha = 0.2
+  ) +
+  geom_line(
+    data = VPD_effects_df,
+    aes(x = VPD_kPa, y = meanval),
+    color = "black",
+    linewidth = 1
+  ) +
+  
+  # prettys 
+  scale_color_manual(
+    values = c("darkgoldenrod2", "royalblue4"), 
+    labels = c("C" = "Control", "W" = "Hydration"), 
+    name = NULL
+  ) +
+  scale_shape_manual(
+    values = c(15, 17), 
+    labels = c("C" = "Control", "W" = "Hydration"),
+    name = NULL
+  ) +
+  theme(
+    legend.position = "inside",
+    legend.position.inside = c(0.18, 0.15),
+    legend.background = element_blank()
+  ) +
+  scale_x_continuous(
+    name = "Ambient Vapor Pressure Deficit (kPa)"
+  ) +
+  scale_y_continuous(
+    breaks = c(0, 10, 20, 30),
+    name = expression('CEWL (g '*m^-2*' '*h^-1*')')
+  ) -> CEWL_VPD_lm
+CEWL_VPD_lm
+```
+
+
+
+
+
+
+## arrange
+
+
+```{r}
+ggarrange(
+  CEWL_temp_lm, CEWL_VPD_lm,
+  nrow = 1,
+  ncol = 2,
+  labels = c("A", "B"),
+  align = "hv"
+) -> CEWL_lm_figs
+
+ggsave(
+  filename = "Fig2_mother_CEWL_temp_VPD.pdf",
+  plot = CEWL_lm_figs,
+  path = "./results_figures",
+  device = "pdf",
+  dpi = 600,
+  units = "mm",
+  width = 160,
+  height = 60
+)
+```
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -509,7 +737,7 @@ partur <- lm(data = mothers_baseline_birthsnakes,
              Plasma_Osmol_Rep_mean ~ Day_Relative)
 
 summary(partur)
-anova(partur)
+car::Anova(partur, type = "2")
 ```
 Day relative to birth was not significant. Will run all individuals in one model. 
 
@@ -520,12 +748,8 @@ baseline_osmol_1 <- lme4::lmer(data = mothers_baseline,
                         Mass_g +
                         SVL_cm +
                         (1|CEWL_Blood_Collect_Date))
-                    
 summary(baseline_osmol_1)
 drop1(baseline_osmol_1)
-anova(baseline_osmol_1)
-
-TukeyHSD(aov(data = mothers_baseline, formula = Plasma_Osmol_Rep_mean ~ Rookery_Capture_ID))
 ```
 The capture date didn't account for any of the variance so first dropping the random effect.
 
@@ -536,7 +760,6 @@ baseline_osmol_2 <- lm(data = mothers_baseline,
                         SVL_cm)
                     
 drop1(baseline_osmol_2)
-anova(baseline_osmol_2)
 ```
 
 
@@ -572,7 +795,7 @@ cewl_AICc_all <- data.frame(aictab(cand.set = baseline_osmol_mods,
 cewl_AICc_all
 ```
 
-They are all equivalent.
+They are all equivalently bad.
 
 
 ## No Final Model
@@ -615,7 +838,6 @@ BirthSnakes_LMM_0.1 <- lme4::lmer(data = birth_snakes,
 
 car::vif(BirthSnakes_LMM_0.1)
 drop1(BirthSnakes_LMM_0.1)
-anova(BirthSnakes_LMM_0.1)
 ```
 
 
@@ -630,7 +852,6 @@ BirthSnakes_LMM_1 <- lme4::lmer(data = birth_snakes,
                         (1|Indiv_ID))
 
 drop1(BirthSnakes_LMM_1)
-anova(BirthSnakes_LMM_1)
 ```
 
 
@@ -644,7 +865,6 @@ BirthSnakes_LMM_2a <- lme4::lmer(data = birth_snakes,
                         (1|Indiv_ID))
 
 drop1(BirthSnakes_LMM_2a)
-anova(BirthSnakes_LMM_2a)
 
 BirthSnakes_LMM_2 <- lme4::lmer(data = birth_snakes,
                       Plasma_Osmol_Rep_mean ~
@@ -654,7 +874,6 @@ BirthSnakes_LMM_2 <- lme4::lmer(data = birth_snakes,
                         (1|Indiv_ID))
 
 drop1(BirthSnakes_LMM_2)
-anova(BirthSnakes_LMM_2)
 ```
 
 
@@ -664,9 +883,6 @@ BirthSnakes_LMM_3 <- lme4::lmer(data = birth_snakes,
                         Hydration_Trmt *
                         Days_in_Treatment +
                         (1|Indiv_ID))
-
-drop1(BirthSnakes_LMM_3)
-anova(BirthSnakes_LMM_3)
 ```
 
 ```{r}
@@ -677,7 +893,6 @@ BirthSnakes_LMM_4 <- lme4::lmer(data = birth_snakes,
                         (1|Indiv_ID))
 
 drop1(BirthSnakes_LMM_4)
-anova(BirthSnakes_LMM_4)
 ```
 
 
@@ -686,8 +901,6 @@ BirthSnakes_LMM_5 <- lme4::lmer(data = birth_snakes,
                       Plasma_Osmol_Rep_mean ~
                         Days_in_Treatment +
                         (1|Indiv_ID))
-
-anova(BirthSnakes_LMM_5)
 ```
 
 
@@ -702,13 +915,14 @@ BirthSnakes_LMM_null<- lme4::lmer(data = birth_snakes,
 ## Model selection
 
 ```{r}
-osmolarity_models <- list(BirthSnakes_LMM_1, BirthSnakes_LMM_2, 
+osmolarity_models <- list(BirthSnakes_LMM_0.1, BirthSnakes_LMM_1,
+                          BirthSnakes_LMM_2a, BirthSnakes_LMM_2, 
                           BirthSnakes_LMM_3, BirthSnakes_LMM_4, 
                           BirthSnakes_LMM_5, BirthSnakes_LMM_null)
 
 #specify model names
-osmolarity_mod_names <- c('model1', 
-                    'model2', 
+osmolarity_mod_names <- c('model0', 'model1', 
+                    'model2a',  'model2', 
                     'model3',
                     'model4',
                     'model5',
@@ -733,7 +947,11 @@ BirthSnakes_LMM_best <- lmerTest::lmer(data = birth_snakes,
                         (1|Indiv_ID))
 
 summary(BirthSnakes_LMM_best)
-anova(BirthSnakes_LMM_best)
+anova(BirthSnakes_LMM_best, test = "F", type = "2")
+```
+
+
+```{r}
 emtrends(BirthSnakes_LMM_best, 
          "Hydration_Trmt", var = "Days_in_Treatment")
 pairs(emtrends(BirthSnakes_LMM_2, 
@@ -746,8 +964,55 @@ pairs(emtrends(BirthSnakes_LMM_2,
 
 ```{r}
 plot(BirthSnakes_LMM_best)
-shapiro.test(residuals(BirthSnakes_LMM_2))
+shapiro.test(residuals(BirthSnakes_LMM_best))
 ```
+
+
+
+
+
+
+
+
+
+
+## Partial Regression
+
+
+```{r}
+plot(effect("Hydration_Trmt:Days_in_Treatment", 
+            BirthSnakes_LMM_best), multiline = TRUE)
+plot(effect("Day_Relative", BirthSnakes_LMM_best))
+```
+
+
+```{r}
+int_effects_data <- summary(effect("Hydration_Trmt:Days_in_Treatment", BirthSnakes_LMM_best))
+
+as.data.frame(int_effects_data$effect)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -762,11 +1027,34 @@ No_BirthSnakes_LMM_1 <- lme4::lmer(data = no_birth_snakes,
                       Plasma_Osmol_Rep_mean ~
                         Hydration_Trmt *
                         Days_in_Treatment +
+                        Mass_g +
+                        SVL_cm +
                         (1|Indiv_ID))
 
 drop1(No_BirthSnakes_LMM_1)
 anova(No_BirthSnakes_LMM_1)
 ```
+
+
+```{r}
+No_BirthSnakes_LMM_1a <- lme4::lmer(data = no_birth_snakes,
+                      Plasma_Osmol_Rep_mean ~
+                        Hydration_Trmt *
+                        Days_in_Treatment +
+                        SVL_cm +
+                        (1|Indiv_ID))
+
+drop1(No_BirthSnakes_LMM_1a)
+```
+
+```{r}
+No_BirthSnakes_LMM_1b <- lme4::lmer(data = no_birth_snakes,
+                      Plasma_Osmol_Rep_mean ~
+                        Hydration_Trmt *
+                        Days_in_Treatment +
+                        (1|Indiv_ID))
+```
+
 
 
 ```{r}
@@ -777,7 +1065,6 @@ No_BirthSnakes_LMM_2 <- lme4::lmer(data = no_birth_snakes,
                         (1|Indiv_ID))
 
 drop1(No_BirthSnakes_LMM_2)
-anova(No_BirthSnakes_LMM_2)
 ```
 
 
@@ -800,12 +1087,13 @@ No_BirthSnakes_LMM_null <- lme4::lmer(data = no_birth_snakes,
 
 ```{r}
 osmolarity_models_nb <- list(No_BirthSnakes_LMM_1, 
+                             No_BirthSnakes_LMM_1a, No_BirthSnakes_LMM_1b, 
                           No_BirthSnakes_LMM_2, 
                           No_BirthSnakes_LMM_3, 
                           No_BirthSnakes_LMM_null)
 
 #specify model names
-osmolarity_mod_names_nb <- c('model1', 
+osmolarity_mod_names_nb <- c('model1', 'model1a', 'model1b', 
                     'model2', 
                     'model3',
                     'modelnull')
@@ -820,7 +1108,7 @@ osmolarity_AICc_nb
 
 
 ## Final model
-Best model is 1
+Best model is 1b
 
 
 ```{r}
@@ -830,11 +1118,15 @@ No_BirthSnakes_LMM_best <- lmerTest::lmer(data = no_birth_snakes,
                         Days_in_Treatment +
                         (1|Indiv_ID))
 
-summary(No_BirthSnakes_LMM_1)
-anova(No_BirthSnakes_LMM_1)
-emtrends(No_BirthSnakes_LMM_1, 
+summary(No_BirthSnakes_LMM_best)
+anova(No_BirthSnakes_LMM_best, test = "F", type = "2")
+```
+
+
+```{r}
+emtrends(No_BirthSnakes_LMM_best, 
          "Hydration_Trmt", var = "Days_in_Treatment")
-pairs(emtrends(No_BirthSnakes_LMM_1, 
+pairs(emtrends(No_BirthSnakes_LMM_best, 
                "Hydration_Trmt", var = "Days_in_Treatment"))
 ```
 
@@ -947,7 +1239,18 @@ dacwac <- mother_data_all_final_full %>%
 # 9 individuals with dac vs dab comparison
 dacdab <- mother_data_all_final_full %>% 
   filter(Indiv_ID %in% missing_1wac$Indiv_ID) %>% 
-  filter(Preg_Stage %in% c("DAC", "DAB"))
+  filter(Preg_Stage %in% c("DAC", "DAB")) %>% 
+  # find out how long they were in tmt before parturition
+  group_by(Indiv_ID) %>% 
+  mutate(
+    min_date = min(CEWL_Blood_Collect_Date),
+    max_date = max(CEWL_Blood_Collect_Date),
+    tmt_time_pre_birth = as.numeric(max_date - min_date)
+  ) %>% 
+  # remove 3 moms only in tmt 2d and 1 mom only in tmt 3d
+  # 5 individuals with DAB msmts 5 or 7d after DAC msmts
+  filter(tmt_time_pre_birth > 4) %>% 
+  select(-min_date, -max_date, -tmt_time_pre_birth)
 
 # both comparisons
 tmt_befaft <- rbind(dacdab, dacwac) %>% 
@@ -962,16 +1265,6 @@ summary(tmt_befaft)
 tmt_befaft %>% 
   group_by(Indiv_ID) %>% 
   count()
-
-# check time in tmt
-tmt_befaft %>% 
-  group_by(Indiv_ID) %>% 
-  summarise(
-    min_date = min(CEWL_Blood_Collect_Date),
-    max_date = max(CEWL_Blood_Collect_Date)
-  ) %>% 
-  mutate(range = as.numeric(max_date - min_date)) %>% 
-  summary()
 ```
 
 
@@ -1007,7 +1300,9 @@ only use mass for the snakes that did not give birth in the first week of the ex
 
 ```{r}
 deltas_mass_only <- deltas %>% 
-  filter(Preg_Stage == "1WAC")
+  filter(Preg_Stage == "1WAC") %>% 
+  # remove a for sure error
+  filter(delta_mass < 200)
 deltas_befaft_mass_only <- deltas_befaft %>% 
   filter(Indiv_ID %in% deltas_mass_only$Indiv_ID)
 tmt_befaft_mass_only <- tmt_befaft %>% 
@@ -1037,7 +1332,7 @@ mass_means <- emmeans(mass_lm_time_tmt, "Hydration_Trmt", by = "tmt_timing")
 mass_lm_time_tmt_CI <- tidy(confint(mass_means))
 #mass_lm_time_tmt_CI <- tidy(mass_means_time$emmeans) # either would work
 
-anova(mass_lm_time_tmt)
+anova(mass_lm_time_tmt, type = "2")
 ```
 
 
@@ -1049,7 +1344,7 @@ anova(mass_lm_time_tmt)
 delta_mass_lm <- lm(data = deltas_mass_only, delta_mass ~ Hydration_Trmt)
 
 summary(delta_mass_lm)
-anova(delta_mass_lm)
+car::Anova(delta_mass_lm, type = "2")
 emmeans(delta_mass_lm, pairwise ~ Hydration_Trmt)
 ```
 
@@ -1085,7 +1380,7 @@ osml_means_tmt$contrasts
 osml_means <- emmeans(osml_lm_time_tmt, "Hydration_Trmt", by = "tmt_timing")
 osml_lm_time_tmt_CI <- tidy(confint(osml_means))
 
-anova(osml_lm_time_tmt)
+anova(osml_lm_time_tmt, type = "2")
 ```
 
 
@@ -1099,7 +1394,7 @@ anova(osml_lm_time_tmt)
 delta_osml_lm <- lm(data = deltas, delta_osml ~ Hydration_Trmt)
 
 summary(delta_osml_lm)
-anova(delta_osml_lm)
+car::Anova(delta_osml_lm, type = "2")
 emmeans(delta_osml_lm, pairwise ~ Hydration_Trmt)
 ```
 
@@ -1136,7 +1431,7 @@ cewl_means <- emmeans(cewl_lm_time_tmt, "Hydration_Trmt", by = "tmt_timing")
 cewl_lm_time_tmt_CI <- tidy(confint(cewl_means))
 #cewl_lm_time_tmt_CI <- tidy(cewl_means_time$emmean)
 
-anova(cewl_lm_time_tmt)
+anova(cewl_lm_time_tmt, type = "2")
 ```
 
 
@@ -1150,7 +1445,7 @@ anova(cewl_lm_time_tmt)
 delta_cewl_lm <- lm(data = deltas, delta_CEWL ~ Hydration_Trmt)
 
 summary(delta_cewl_lm)
-anova(delta_cewl_lm)
+car::Anova(delta_cewl_lm, type = "2")
 emmeans(delta_cewl_lm, pairwise ~ Hydration_Trmt)
 ```
 
@@ -1286,16 +1581,16 @@ ggplot() +
     color = "Treatment"
   ) +
   scale_y_continuous(
-    limits = c(280, 800), 
-    breaks = seq(280, 800, by = 100)
+    limits = c(295, 700), 
+    breaks = seq(300, 700, by = 100)
   ) + 
   
   theme(legend.position = "none") +
   
   # statistical labels
-  annotate(geom = "text", x = 1, y = 745, label = "NS", size = 2) +
-  annotate(geom = "text", x = 2, y = 730, label = "*", size = 6) +
-  annotate(geom = "text", x = 2.5, y = 390, label = "*", size = 6, 
+  annotate(geom = "text", x = 1, y = 692, label = "NS", size = 2) +
+  annotate(geom = "text", x = 2, y = 685, label = "*", size = 6) +
+  annotate(geom = "text", x = 2.5, y = 440, label = "*", size = 6, 
            color = "darkgoldenrod2") +
   annotate(geom = "text", x = 2.5, y = 490, label = "*", size = 6,
            color = "royalblue4") -> mother_mass_all # save
@@ -1371,18 +1666,18 @@ ggplot() +
     color = "Treatment"
   ) +
   scale_y_continuous(
-    limits = c(280, 382), 
+    limits = c(295, 382), 
     breaks = seq(280, 380, by = 20)
   ) + 
   
   theme(legend.position = "none") +
   
   # statistical labels
-  annotate(geom = "text", x = 1, y = 370, label = "*", size = 6) +
-  annotate(geom = "text", x = 2, y = 370, label = "*", size = 6) +
-  annotate(geom = "text", x = 2.5, y = 330, label = "*", size = 6, 
+  annotate(geom = "text", x = 1, y = 373, label = "*", size = 6) +
+  annotate(geom = "text", x = 2, y = 373, label = "*", size = 6) +
+  annotate(geom = "text", x = 2.5, y = 336, label = "*", size = 6, 
            color = "darkgoldenrod2") +
-  annotate(geom = "text", x = 2.5, y = 310, label = "*", size = 6,
+  annotate(geom = "text", x = 2.5, y = 317, label = "*", size = 6,
            color = "royalblue4") -> mother_osmolality_all
 
 mother_osmolality_all
@@ -1459,16 +1754,19 @@ ggplot() +
     color = "Treatment"
   ) +
   scale_y_continuous(
-    limits = c(9, 31), 
+    limits = c(9, 32), 
     breaks = seq(10, 30, by = 5)
   ) + 
   
   theme(legend.position = "none") +
   
   # statistical labels
-  annotate(geom = "text", x = 1, y = 28, label = "NS", size = 2) +
-  annotate(geom = "text", x = 2, y = 28, label = "NS", size = 2) +
-  annotate(geom = "text", x = 2.5, y = 16, label = "//", size = 3) -> mother_cewl_all
+  annotate(geom = "text", x = 1, y = 31, label = "NS", size = 2) +
+  annotate(geom = "text", x = 2, y = 31, label = "NS", size = 2) +
+  annotate(geom = "text", x = 2.45, y = 15, label = "*", size = 6,
+           color = "darkgoldenrod2") +
+  annotate(geom = "text", x = 2.55, y = 15, label = "*", size = 6,
+           color = "royalblue4") -> mother_cewl_all
   
 mother_cewl_all
 ```
@@ -1511,18 +1809,18 @@ ggplot(
     color = "Treatment"
   ) +
   scale_y_continuous(
-    #limits = c(-45, 60),
+    limits = c(-45, 62),
     breaks = c(-45, -30, -15, 0, 15, 30, 45, 60)
   ) +
   
   theme(legend.position = "inside",
-        legend.position.inside = c(0.15, 0.15),
+        legend.position.inside = c(0.25, 0.15),
         legend.background = element_blank()) +
   
   # labels
-  annotate(geom = "text", x = 2.3, y = 30, label = "*", size = 6, 
+  annotate(geom = "text", x = 2.3, y = 20, label = "*", size = 6, 
            color = "royalblue4") +
-  annotate(geom = "text", x = 2.3, y = -30, label = "*", size = 6, 
+  annotate(geom = "text", x = 2.3, y = -20, label = "*", size = 6, 
            color = "darkgoldenrod2") +
   annotate(geom = "text", x = 2, y = 60, label = "*", 
            size = 6) -> mother_change_mass
@@ -1568,12 +1866,12 @@ ggplot(
     color = "Treatment"
   ) +
   scale_y_continuous(
-    limits = c(-60, 45),
-    breaks = c(-60, -45, -30, -15, 0, 15, 30, 45)
+    limits = c(-53, 45),
+    breaks = c(-45, -30, -15, 0, 15, 30, 45)
   ) +
   
   theme(legend.position = "inside",
-        legend.position.inside = c(0.25, 0.2),
+        legend.position.inside = c(0.25, 0.85),
         legend.background = element_blank()) +
   
   # labels
@@ -1581,7 +1879,7 @@ ggplot(
            color = "royalblue4") +
   annotate(geom = "text", x = 2.3, y = 20, label = "*", size = 6, 
            color = "darkgoldenrod2") +
-  annotate(geom = "text", x = 2, y = 45, label = "*", 
+  annotate(geom = "text", x = 2, y = 42, label = "*", 
            size = 6) -> mother_change_osml
 mother_change_osml
 ```
@@ -1621,17 +1919,20 @@ ggplot(
     color = "Treatment"
   ) +
   scale_y_continuous(
-    limits = c(-17, 10),
+    limits = c(-17, 5),
     breaks = c(-15, -10, -5, 0, 5, 10)
   ) +
   
   theme(legend.position = "inside",
-        legend.position.inside = c(0.25, 0.2),
+        legend.position.inside = c(0.25, 0.15),
         legend.background = element_blank()) +
   
   # labels
-  annotate(geom = "text", x = 2.3, y = -5, label = "//", size = 3) +
-  annotate(geom = "text", x = 2, y = 10, label = "NS", 
+  annotate(geom = "text", x = 2.25, y = -8, label = "*", size = 6,
+           color = "darkgoldenrod2") +
+  annotate(geom = "text", x = 2.35, y = -8, label = "*", size = 6,
+           color = "royalblue4") +
+  annotate(geom = "text", x = 2, y = 4.7, label = "NS", 
            size = 2) -> mother_change_cewl
 mother_change_cewl
 ```
@@ -1678,61 +1979,6 @@ ggsave(
 
 
 
-# PUB FIGURE 2
-
-
-## CEWL ~ temp
-
-
-```{r}
-ggplot(data = mother_data_all, 
-       aes(x = msmt_temp_C, y = CEWL_g_m2h)) +
-  geom_point(size = 2, 
-             alpha = 0.7,
-             color = "springgreen3") +
-  annotate(geom = "text", 
-           x = 26.5, 
-           y = 10, 
-           label = "p < 0.0001", 
-           size = 5) +
-  geom_smooth(aes(x = msmt_temp_C, y = CEWL_g_m2h),
-              method = "lm", 
-              se = TRUE, 
-              show.legend = TRUE, 
-              color = "black") +
- scale_y_continuous(limits = c(9, 30.5),
-                  breaks = seq(9, 30.5, by = 3))
-
-```
-
-
-
-
-## CEWL ~ RH
-
-
-```{r}
-ggplot(data = mother_data_all, 
-       aes(x = msmt_RH_percent, y = CEWL_g_m2h)) +
-  geom_point(size = 2, 
-             alpha = 0.7, 
-             color = "springgreen3") +
-  annotate(geom = "text", 
-           x = 44, 
-           y = 10, 
-           label = "p < 0.0001", 
-           size = 5) +
-  geom_smooth(aes(x = msmt_RH_percent, y = CEWL_g_m2h),
-              method = "lm", 
-              se = TRUE, 
-              show.legend = TRUE, 
-              color = "black") +
-  labs(x = "Ambient Humidity (%)", 
-       y = "") +
-scale_x_continuous(breaks = c(34, 36, 38, 40, 42, 44, 46, 48), limits = c(34, 48)) +
- scale_y_continuous(limits = c(9, 30.5),
-                  breaks = seq(9, 30.5, by = 3))
-```
 
 
 
