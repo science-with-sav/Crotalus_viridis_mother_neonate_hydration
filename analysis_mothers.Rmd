@@ -181,7 +181,12 @@ birth_snakes <- mother_data_all_final_full %>%
   # Robin removes this snake, but I don't remember why
   filter(Indiv_ID != 117) %>% 
   left_join(neo_counts, by = c("Indiv_ID" = "Mother_ID"))
+summary(birth_snakes)
+unique(birth_snakes$Indiv_ID)
+```
 
+
+```{r}
 birth_snakes_DAB <- birth_snakes %>% 
   filter(Preg_Stage == "DAB") %>% 
   select(
@@ -200,6 +205,8 @@ Now, a dataframe with the snakes that did not give birth.
 ```{r}
 no_birth_snakes <- mother_data_all_final_full %>%
   filter(Gave_Birth == "N")
+summary(no_birth_snakes)
+unique(no_birth_snakes$Indiv_ID)
 ```
 
 At capture measurements... I need a dataframe with only the baseline measurements. 
@@ -383,6 +390,7 @@ baseline_final_mod <- lmerTest::lmer(data = mothers_baseline,
                         (1|CEWL_Blood_Collect_Date))
 
 summary(baseline_final_mod)
+r.squaredGLMM(baseline_final_mod)
 anova(baseline_final_mod, test = "F", type = "2")
 car::Anova(baseline_final_mod, test = "F", type = "2")
 ```
@@ -977,6 +985,7 @@ BirthSnakes_LMM_best <- lmerTest::lmer(data = birth_snakes,
                         (1|Indiv_ID))
 
 summary(BirthSnakes_LMM_best)
+r.squaredGLMM(BirthSnakes_LMM_best)
 anova(BirthSnakes_LMM_best, test = "F", type = "2")
 ```
 
@@ -1149,6 +1158,7 @@ No_BirthSnakes_LMM_best <- lmerTest::lmer(data = no_birth_snakes,
                         (1|Indiv_ID))
 
 summary(No_BirthSnakes_LMM_best)
+r.squaredGLMM(No_BirthSnakes_LMM_best)
 anova(No_BirthSnakes_LMM_best, test = "F", type = "2")
 ```
 
@@ -1593,7 +1603,8 @@ ggplot() +
   
   # statistical labels
   annotate(geom = "text", x = 1, y = 692, label = "NS", size = 2) +
-  annotate(geom = "text", x = 2, y = 685, label = "*", size = 6) +
+  annotate(geom = "text", x = 2, y = 692, label = "NS", size = 2) +
+  #annotate(geom = "text", x = 2, y = 685, label = "*", size = 6) +
   annotate(geom = "text", x = 2.5, y = 440, label = "*", size = 6, 
            color = "darkgoldenrod2") +
   annotate(geom = "text", x = 2.5, y = 490, label = "*", size = 6,
@@ -1967,7 +1978,7 @@ ggsave(
   device = "pdf",
   dpi = 600,
   units = "mm",
-  width = 150,
+  width = 160,
   height = 180
 )
 ```

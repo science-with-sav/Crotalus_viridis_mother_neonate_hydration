@@ -677,6 +677,23 @@ shapiro.test(residuals(DAB_CEWL_LM_BEST))
 
 
 
+# Check Tb
+
+
+```{r}
+DAB_Tb <- lmerTest::lmer(data = dab_all,
+                      Tb_CEWL_c ~ 
+                      Treatment +
+                        (1|Mother_ID))
+                     
+anova(DAB_Tb, test = "F", type = "2")
+emmeans(DAB_Tb, pairwise ~ Treatment)
+```
+
+
+
+
+
 # DAB CEWL DIFFS
 
 
@@ -859,7 +876,7 @@ DAB_CEWL_LMM_BEST_simple <- lmerTest::lmer(data = dab_all,
 
 summary(DAB_CEWL_LMM_BEST_simple)
 anova(DAB_CEWL_LMM_BEST_simple, test = "F", type = "2")
-
+r.squaredGLMM(DAB_CEWL_LMM_BEST_simple)
 emmeans(DAB_CEWL_LMM_BEST_simple, pairwise ~ Treatment)
 DAB_CEWL_emmeans <- emmeans(DAB_CEWL_LMM_BEST_simple, "Treatment")
 DAB_CEWL_emmeans_CI <- tidy(confint(DAB_CEWL_emmeans))
@@ -1860,7 +1877,7 @@ emmeans(DAB_OSMOL_LMM_BEST_tmt,
 
 osml_tmt_trends <- emtrends(DAB_OSMOL_LMM_BEST_tmt, 
          var = "Mother_Days_in_Treatment", "Treatment")
-osml_tmt_trends
+tidy(osml_tmt_trends)
 
 pairs(osml_tmt_trends)
 
@@ -1873,6 +1890,7 @@ DAB_OSMOL_emmeans_CI <- tidy(confint(DAB_OSMOL_emmeans_tmt))
 ```{r}
 summary(DAB_OSMOL_LMM_BEST_mom)
 r.squaredGLMM(DAB_OSMOL_LMM_BEST_mom)
+r.squaredGLMM(DAB_OSMOL_LMM_BEST_tmt)
 ```
 
 
