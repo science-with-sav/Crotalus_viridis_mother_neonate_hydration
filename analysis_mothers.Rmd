@@ -152,9 +152,12 @@ mother_data_all_final_full <- mother_data_all %>%
     e_s_kPa = 0.611 * exp((17.502*msmt_temp_C)/(msmt_temp_C + 240.97)), # saturation VP
     e_a_kPa = e_s_kPa*((msmt_RH_percent/100)), # actual VP
     VPD_kPa = e_s_kPa - e_a_kPa # VP deficit
-  ) 
+  ) %>% 
+  # fix a typo
+  mutate(Tb_at_CEWL = case_when(Tb_at_CEWL > 70 ~ NA, TRUE ~ Tb_at_CEWL))
 
 summary(mother_data_all_final_full)
+sd(mother_data_all_final_full$Tb_at_CEWL, na.rm = T)
 
 mother_data_all_final_full %>% 
   group_by(Indiv_ID) %>% 
@@ -164,6 +167,9 @@ mother_data_all_final_full %>%
   
 mother_data_all_final_full %>% 
   filter(Indiv_ID %in% c(103, 115))
+
+mother_data_all_final_full_noNA_temps <- mother_data_all_final_full %>% 
+  filter(complete.cases(Tb_at_CEWL))
 ```
 
 
@@ -227,6 +233,10 @@ At capture measurements... I need a dataframe with only the baseline measurement
 ```{r}
 mothers_baseline <- mother_data_all_final_full %>%
   filter(Preg_Stage == "DAC") #DAC= day after capture
+
+mothers_baseline_noNA_temps <- mothers_baseline %>% 
+  filter(complete.cases(Tb_at_CEWL))
+summary(mothers_baseline_noNA_temps)
 ```
 
 
@@ -294,28 +304,30 @@ car::vif(baseline_cewl_1)
 ```
 
 ```{r}
-baseline_cewl_1a <- lme4::lmer(data = mothers_baseline,
+baseline_cewl_1a <- lme4::lmer(data = mothers_baseline_noNA_temps,
                       CEWL_g_m2h ~
                         Tb_at_CEWL +
                         msmt_temp_C +
                         VPD_kPa +
                         Mass_g +
                         SVL_cm +
+                        Plasma_Osmol_Rep_mean +
                         (1|CEWL_Blood_Collect_Date))
                     
 car::vif(baseline_cewl_1a)
-drop1(baseline_cewl_1a)
-anova(baseline_cewl_1a, test = "F", type = "2")
+drop1(baseline_cewl_1a, na.rm = T)
+anova(baseline_cewl_1a)
 ```
 
 
 ```{r}
-baseline_cewl_2 <- lme4::lmer(data = mothers_baseline,
+baseline_cewl_2 <- lme4::lmer(data = mothers_baseline_noNA_temps,
                       CEWL_g_m2h ~
                         Tb_at_CEWL +
                         msmt_temp_C +
                         VPD_kPa +
                         Mass_g +
+                        Plasma_Osmol_Rep_mean +
                         (1|CEWL_Blood_Collect_Date))
                     
 drop1(baseline_cewl_2)
@@ -324,11 +336,12 @@ anova(baseline_cewl_2, test = "F", type = "2")
 
 
 ```{r}
-baseline_cewl_3 <- lme4::lmer(data = mothers_baseline,
+baseline_cewl_3 <- lme4::lmer(data = mothers_baseline_noNA_temps,
                       CEWL_g_m2h ~
                         Tb_at_CEWL +
                         msmt_temp_C +
                         VPD_kPa +
+                        Plasma_Osmol_Rep_mean +
                         (1|CEWL_Blood_Collect_Date))
                     
 drop1(baseline_cewl_3)
@@ -337,10 +350,11 @@ anova(baseline_cewl_3, test = "F", type = "2")
 
 
 ```{r}
-baseline_cewl_4 <- lme4::lmer(data = mothers_baseline,
+baseline_cewl_4 <- lme4::lmer(data = mothers_baseline_noNA_temps,
                       CEWL_g_m2h ~
                         msmt_temp_C +
                         VPD_kPa +
+                        Plasma_Osmol_Rep_mean +
                         (1|CEWL_Blood_Collect_Date))
                     
 drop1(baseline_cewl_4)
@@ -349,17 +363,28 @@ anova(baseline_cewl_4, test = "F", type = "2")
 
 
 ```{r}
-baseline_cewl_5 <- lme4::lmer(data = mothers_baseline,
+baseline_cewl_5 <- lme4::lmer(data = mothers_baseline_noNA_temps,
                       CEWL_g_m2h ~
                         msmt_temp_C +
+                        VPD_kPa +
                         (1|CEWL_Blood_Collect_Date))
                     
-anova(baseline_cewl_5, test = "F", type = "2")
+drop1(baseline_cewl_5)
 ```
 
 
 ```{r}
-baseline_cewl_null <- lme4::lmer(data = mothers_baseline,
+baseline_cewl_6 <- lme4::lmer(data = mothers_baseline_noNA_temps,
+                      CEWL_g_m2h ~
+                        msmt_temp_C +
+                        (1|CEWL_Blood_Collect_Date))
+                    
+anova(baseline_cewl_6, test = "F", type = "2")
+```
+
+
+```{r}
+baseline_cewl_null <- lme4::lmer(data = mothers_baseline_noNA_temps,
                       CEWL_g_m2h ~ 1 +
                         (1|CEWL_Blood_Collect_Date))
 ```
@@ -371,7 +396,7 @@ baseline_cewl_null <- lme4::lmer(data = mothers_baseline,
 ```{r}
 baseline_cewl_mods <- list(baseline_cewl_1a, baseline_cewl_2, 
                            baseline_cewl_3, baseline_cewl_4,
-                           baseline_cewl_5,
+                           baseline_cewl_5, baseline_cewl_6,
                            baseline_cewl_null)
 
 #specify model names
@@ -380,6 +405,7 @@ baeline_cewl_mod_names_all <- c('model1',
                     'model3',
                     'model4',
                     'model5',
+                    'model6',
                     'modelnull')
 
 #calculate AIC of each model
@@ -393,7 +419,7 @@ cewl_AICc_all
 
 ## Final model
 
-Best model was 3 which included:
+Best model was 5 which included:
 
 ```{r}
 baseline_final_mod <- lmerTest::lmer(data = mothers_baseline,
@@ -407,6 +433,25 @@ r.squaredGLMM(baseline_final_mod)
 anova(baseline_final_mod, test = "F", type = "2")
 car::Anova(baseline_final_mod, test = "F", type = "2")
 ```
+
+
+
+
+
+
+
+
+
+
+# Body Temperature
+
+
+```{r}
+Tb_Ta_lm <- lm(data = mother_data_all_final_full, Tb_at_CEWL~msmt_temp_C)
+
+summary(Tb_Ta_lm)
+```
+
 
 
 
@@ -440,7 +485,7 @@ anova(CEWL_LMM_birth, type = "2")
 Since day relative to birth is not significant, I can include all snakes in one model together. 
 
 ```{r}
-CEWL_LMM_1 <- lme4::lmer(data = mother_data_all_final_full,
+CEWL_LMM_1 <- lme4::lmer(data = mother_data_all_final_full_noNA_temps,
                       CEWL_g_m2h ~
                         Hydration_Trmt *
                         Days_in_Treatment +
@@ -456,7 +501,7 @@ anova(CEWL_LMM_1, test = "F", type = "2")
 
 
 ```{r}
-CEWL_LMM_2 <- lme4::lmer(data = mother_data_all_final_full,
+CEWL_LMM_2 <- lme4::lmer(data = mother_data_all_final_full_noNA_temps,
                       CEWL_g_m2h ~
                         Hydration_Trmt +
                         Days_in_Treatment +
@@ -470,53 +515,78 @@ anova(CEWL_LMM_2, test = "F", type = "2")
 
 
 ```{r}
-CEWL_LMM_3 <- lme4::lmer(data = mother_data_all_final_full,
+CEWL_LMM_3 <- lme4::lmer(data = mother_data_all_final_full_noNA_temps,
                       CEWL_g_m2h ~
                         Hydration_Trmt +
                         Days_in_Treatment +
                         msmt_temp_C +
                         VPD_kPa +
                         (1|Indiv_ID))
+CEWL_LMM_3a <- lme4::lmer(data = mother_data_all_final_full_noNA_temps,
+                      CEWL_g_m2h ~
+                        Hydration_Trmt +
+                        Tb_at_CEWL +
+                        msmt_temp_C +
+                        VPD_kPa +
+                        (1|Indiv_ID))
 drop1(CEWL_LMM_3)
+drop1(CEWL_LMM_3a)
 anova(CEWL_LMM_3, test = "F", type = "2")
+anova(CEWL_LMM_3a)
 ```
 
 ```{r}
-CEWL_LMM_4 <- lme4::lmer(data = mother_data_all_final_full,
+CEWL_LMM_4 <- lme4::lmer(data = mother_data_all_final_full_noNA_temps,
                       CEWL_g_m2h ~
                         Hydration_Trmt +
                         msmt_temp_C +
                         VPD_kPa +
                         (1|Indiv_ID))
+CEWL_LMM_4a <- lme4::lmer(data = mother_data_all_final_full_noNA_temps,
+                      CEWL_g_m2h ~
+                        Hydration_Trmt +
+                        Tb_at_CEWL +
+                        VPD_kPa +
+                        (1|Indiv_ID))
 
 drop1(CEWL_LMM_4)
+drop1(CEWL_LMM_4a)
 anova(CEWL_LMM_4, test = "F", type = "2")
 ```
 
 
 ```{r}
-CEWL_LMM_5 <- lme4::lmer(data = mother_data_all_final_full,
+CEWL_LMM_5 <- lme4::lmer(data = mother_data_all_final_full_noNA_temps,
                       CEWL_g_m2h ~
                         msmt_temp_C +
                         VPD_kPa +
                         (1|Indiv_ID))
+CEWL_LMM_5a <- lme4::lmer(data = mother_data_all_final_full_noNA_temps,
+                      CEWL_g_m2h ~
+                        Tb_at_CEWL +
+                        VPD_kPa +
+                        (1|Indiv_ID))
 
 drop1(CEWL_LMM_5)
-summary(CEWL_LMM_5)
+drop1(CEWL_LMM_5a)
 ```
 
 
 ```{r}
-CEWL_LMM_6 <- lme4::lmer(data = mother_data_all_final_full,
+CEWL_LMM_6 <- lme4::lmer(data = mother_data_all_final_full_noNA_temps,
                       CEWL_g_m2h ~
                         msmt_temp_C +
+                        (1|Indiv_ID))
+CEWL_LMM_6a <- lme4::lmer(data = mother_data_all_final_full_noNA_temps,
+                      CEWL_g_m2h ~
+                        Tb_at_CEWL +
                         (1|Indiv_ID))
 ```
 
 
 
 ```{r}
-CEWL_LMM_null <- lme4::lmer(data = mother_data_all_final_full,
+CEWL_LMM_null <- lme4::lmer(data = mother_data_all_final_full_noNA_temps,
                       CEWL_g_m2h ~ 1 +
                         (1|Indiv_ID))
 ```
@@ -527,19 +597,19 @@ CEWL_LMM_null <- lme4::lmer(data = mother_data_all_final_full,
 ```{r}
 cewl_models_all <- list(CEWL_LMM_1, 
                         CEWL_LMM_2, 
-                        CEWL_LMM_3, 
-                        CEWL_LMM_4, 
-                        CEWL_LMM_5, 
-                        CEWL_LMM_6, 
+                        CEWL_LMM_3, CEWL_LMM_3a, 
+                        CEWL_LMM_4, CEWL_LMM_4a, 
+                        CEWL_LMM_5, CEWL_LMM_5a, 
+                        CEWL_LMM_6, CEWL_LMM_6a, 
                         CEWL_LMM_null)
 
 #specify model names
 cewl_mod_names_all <- c('model1', 
                     'model2', 
-                    'model3',
-                    'model4',
-                    'model5',
-                    'model6',
+                    'model3', 'model3a',
+                    'model4', 'model4a',
+                    'model5', 'model5a',
+                    'model6', 'model6a',
                     'modelnull')
 
 #calculate AIC of each model
@@ -552,7 +622,7 @@ cewl_AICc_all
 
 ## Final model
 
-The best model is model 4.
+The best model is model 4. Tb is dropped!! :O
 
 **I believe that the boundary is singular is due to the very small amount of variation explained by the random effect**.
 ```{r}
@@ -747,6 +817,16 @@ ggsave(
   plot = CEWL_lm_figs,
   path = "./results_figures",
   device = "pdf",
+  dpi = 600,
+  units = "mm",
+  width = 160,
+  height = 60
+)
+ggsave(
+  filename = "Fig2_mother_CEWL_temp_VPD.tiff",
+  plot = CEWL_lm_figs,
+  path = "./results_figures",
+  device = "tiff",
   dpi = 600,
   units = "mm",
   width = 160,
@@ -1989,6 +2069,16 @@ ggsave(
   plot = mother_tmt_effects,
   path = "./results_figures",
   device = "pdf",
+  dpi = 600,
+  units = "mm",
+  width = 160,
+  height = 180
+)
+ggsave(
+  filename = "Fig1_mother_tmt_effects.tiff",
+  plot = mother_tmt_effects,
+  path = "./results_figures",
+  device = "tiff",
   dpi = 600,
   units = "mm",
   width = 160,

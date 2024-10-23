@@ -222,6 +222,9 @@ ps_all <- neonate_postshed_clean %>%
             by = c('Indiv_ID', 'CEWL_Blood_Collect_Date')) %>% 
   left_join(all_data_CEWL, 
             by = c('Indiv_ID', 'CEWL_Blood_Collect_Date'))
+
+ps_all_mother <- ps_all %>% 
+  left_join(mother_values, by = "Mother_ID")
 ```
 
 
@@ -679,6 +682,11 @@ shapiro.test(residuals(DAB_CEWL_LM_BEST))
 
 # Check Tb
 
+```{r}
+Tb_Ta_lm <- lm(data = dab_all, Tb_CEWL_c ~ msmt_temp_C)
+summary(Tb_Ta_lm)
+```
+
 
 ```{r}
 DAB_Tb <- lmerTest::lmer(data = dab_all,
@@ -689,6 +697,21 @@ DAB_Tb <- lmerTest::lmer(data = dab_all,
 anova(DAB_Tb, test = "F", type = "2")
 emmeans(DAB_Tb, pairwise ~ Treatment)
 ```
+
+
+
+
+
+
+# CEWL ~ osml
+
+```{r}
+CEWL_osml_lm <- lm(data = dab_all, CEWL_g_m2h ~ Plasma_Osmol_Rep_mean)
+summary(CEWL_osml_lm)
+CEWL_osml_lm2 <- lm(data = ps_all, CEWL_g_m2h ~ Plasma_Osmol_Rep_mean)
+summary(CEWL_osml_lm2)
+```
+
 
 
 
@@ -971,6 +994,73 @@ VPD_effects_df
 
 
 
+## Check PS
+
+```{r}
+PS_CEWL_LMM_mother_simp <- lmerTest::lmer(data = ps_all_mother,
+                      CEWL_g_m2h ~ 
+                        Mother_CEWL +
+                          (1|Mother_ID))
+
+
+summary(PS_CEWL_LMM_mother_simp)
+anova(PS_CEWL_LMM_mother_simp, test = "F", type = "2")
+```
+
+
+
+```{r}
+PS_CEWL_LMM_mother <- lmerTest::lmer(data = ps_all_mother,
+                      CEWL_g_m2h ~ 
+                        Treatment +
+                        Mother_CEWL +
+                        Tb_CEWL_c +
+                        VPD_kPa +
+                          (1|Mother_ID))
+
+
+summary(PS_CEWL_LMM_mother)
+anova(PS_CEWL_LMM_mother, test = "F", type = "2")
+r.squaredGLMM(PS_CEWL_LMM_mother)
+emmeans(PS_CEWL_LMM_mother, pairwise ~ Treatment)
+```
+
+
+```{r}
+PS_CEWL_LMM_mother2 <- lme4::lmer(data = ps_all_mother,
+                      CEWL_g_m2h ~ 
+                        Treatment +
+                        Mother_CEWL +
+                        Tb_CEWL_c +
+                        VPD_kPa +
+                          (1|Mother_ID))
+drop1(PS_CEWL_LMM_mother2)
+```
+
+```{r}
+PS_CEWL_LMM_mother3 <- lme4::lmer(data = ps_all_mother,
+                      CEWL_g_m2h ~ 
+                        Treatment +
+                        Mother_CEWL +
+                        VPD_kPa +
+                          (1|Mother_ID))
+drop1(PS_CEWL_LMM_mother3)
+anova(PS_CEWL_LMM_mother3)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # PUB FIG
 
 
@@ -1104,6 +1194,16 @@ ggsave(
   plot = neo_mom_CEWL_partreg,
   path = "./results_figures",
   device = "pdf",
+  dpi = 600,
+  units = "mm",
+  width = 150,
+  height = 100
+)
+ggsave(
+  filename = "Fig4_neonate_mother_CEWL.tiff",
+  plot = neo_mom_CEWL_partreg,
+  path = "./results_figures",
+  device = "tiff",
   dpi = 600,
   units = "mm",
   width = 150,
@@ -2009,6 +2109,16 @@ ggsave(
   width = 150,
   height = 100
 )
+ggsave(
+  filename = "Fig5_neonate_mother_osml.tiff",
+  plot = neo_mom_osml,
+  path = "./results_figures",
+  device = "tiff",
+  dpi = 600,
+  units = "mm",
+  width = 150,
+  height = 100
+)
 ```
 
 
@@ -2253,6 +2363,17 @@ ggsave(
   plot = dab_diffs,
   path = "./results_figures",
   device = "pdf",
+  dpi = 600,
+  units = "mm",
+  width = 80,
+  height = 120
+)
+
+ggsave(
+  filename = "Fig3_neonate_dab_diffs.tiff",
+  plot = dab_diffs,
+  path = "./results_figures",
+  device = "tiff",
   dpi = 600,
   units = "mm",
   width = 80,
@@ -2960,6 +3081,17 @@ ggsave(
   plot = neo_tmt_effects,
   path = "./results_figures",
   device = "pdf",
+  dpi = 600,
+  units = "mm",
+  width = 160,
+  height = 180
+)
+
+ggsave(
+  filename = "Fig6_neonate_tmt_effects.tiff",
+  plot = neo_tmt_effects,
+  path = "./results_figures",
+  device = "tiff",
   dpi = 600,
   units = "mm",
   width = 160,
