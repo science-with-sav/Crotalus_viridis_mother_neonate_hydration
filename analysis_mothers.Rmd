@@ -182,6 +182,11 @@ birth_snakes <- mother_data_all_final_full %>%
   filter(Indiv_ID != 117) %>% 
   left_join(neo_counts, by = c("Indiv_ID" = "Mother_ID"))
 summary(birth_snakes)
+birth_snakes %>% 
+  group_by(Indiv_ID, Hydration_Trmt) %>% 
+  count() %>% 
+  group_by(Hydration_Trmt) %>% 
+  count()
 unique(birth_snakes$Indiv_ID)
 ```
 
@@ -205,7 +210,15 @@ Now, a dataframe with the snakes that did not give birth.
 ```{r}
 no_birth_snakes <- mother_data_all_final_full %>%
   filter(Gave_Birth == "N")
+
 summary(no_birth_snakes)
+
+no_birth_snakes %>% 
+  group_by(Indiv_ID, Hydration_Trmt) %>% 
+  count() %>% 
+  group_by(Hydration_Trmt) %>% 
+  count()
+
 unique(no_birth_snakes$Indiv_ID)
 ```
 
@@ -991,8 +1004,8 @@ anova(BirthSnakes_LMM_best, test = "F", type = "2")
 
 
 ```{r}
-emtrends(BirthSnakes_LMM_best, 
-         "Hydration_Trmt", var = "Days_in_Treatment")
+tidy(emtrends(BirthSnakes_LMM_best, 
+         "Hydration_Trmt", var = "Days_in_Treatment"))
 pairs(emtrends(BirthSnakes_LMM_2, 
                "Hydration_Trmt", var = "Days_in_Treatment"))
 ```
@@ -1164,8 +1177,8 @@ anova(No_BirthSnakes_LMM_best, test = "F", type = "2")
 
 
 ```{r}
-emtrends(No_BirthSnakes_LMM_best, 
-         "Hydration_Trmt", var = "Days_in_Treatment")
+tidy(emtrends(No_BirthSnakes_LMM_best, 
+         "Hydration_Trmt", var = "Days_in_Treatment"))
 pairs(emtrends(No_BirthSnakes_LMM_best, 
                "Hydration_Trmt", var = "Days_in_Treatment"))
 ```
