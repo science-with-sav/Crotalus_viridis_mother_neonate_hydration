@@ -1190,7 +1190,7 @@ export it:
 
 ```{r}
 ggsave(
-  filename = "Fig4_neonate_mother_CEWL.pdf",
+  filename = "Fig5_neonate_mother_CEWL.pdf",
   plot = neo_mom_CEWL_partreg,
   path = "./results_figures",
   device = "pdf",
@@ -1200,7 +1200,7 @@ ggsave(
   height = 100
 )
 ggsave(
-  filename = "Fig4_neonate_mother_CEWL.tiff",
+  filename = "Fig5_neonate_mother_CEWL.tiff",
   plot = neo_mom_CEWL_partreg,
   path = "./results_figures",
   device = "tiff",
@@ -2100,7 +2100,7 @@ export it:
 
 ```{r}
 ggsave(
-  filename = "Fig5_neonate_mother_osml.pdf",
+  filename = "Fig3_neonate_mother_osml.pdf",
   plot = neo_mom_osml,
   path = "./results_figures",
   device = "pdf",
@@ -2110,7 +2110,7 @@ ggsave(
   height = 100
 )
 ggsave(
-  filename = "Fig5_neonate_mother_osml.tiff",
+  filename = "Fig3_neonate_mother_osml.tiff",
   plot = neo_mom_osml,
   path = "./results_figures",
   device = "tiff",
@@ -2211,25 +2211,38 @@ neo_tmt_osml
 
 
 
-# PUB FIG 3 DAB
+# PUB FIG DAB
 
 ## Osmolality
 
 ```{r}
 ggplot() +
-  geom_pointrange(
+  # geom_pointrange(
+  #   data = dab_all_clutch_avg,
+  #   aes(
+  #     x = Treatment,
+  #     y = Plasma_Osmol_Rep_mean_mean,
+  #     ymin = Plasma_Osmol_Rep_mean_min,
+  #     ymax = Plasma_Osmol_Rep_mean_max,
+  #     group = Mother_ID,
+  #     color = Treatment,
+  #     shape = Treatment
+  #   ),
+  #   position = position_jitter(width = 0.3),
+  #   size = 0.2, linewidth = 0.3,
+  #   alpha = 0.8,
+  #   show.legend = FALSE
+  # ) +
+  geom_point(
     data = dab_all_clutch_avg,
     aes(
       x = Treatment,
       y = Plasma_Osmol_Rep_mean_mean,
-      ymin = Plasma_Osmol_Rep_mean_min,
-      ymax = Plasma_Osmol_Rep_mean_max,
       group = Mother_ID,
       color = Treatment,
       shape = Treatment
     ),
     position = position_jitter(width = 0.3),
-    size = 0.2, linewidth = 0.3,
     alpha = 0.8,
     show.legend = FALSE
   ) +
@@ -2263,7 +2276,8 @@ ggplot() +
     color = "Treatment"
   ) +
   scale_y_continuous(
-    limits = c(260, 360), 
+    #limits = c(260, 360), # for pointrange
+    limits = c(280, 325), 
     breaks = seq(260, 360, by = 20)
   ) +
   scale_x_discrete(labels = c("C" = "Control", "W" = "Hydration")) +
@@ -2271,7 +2285,7 @@ ggplot() +
   theme(legend.position = "none") +
   
   # statistical labels
-  annotate(geom = "text", x = 1.5, y = 340, label = "*", size = 6) -> dab_osml
+  annotate(geom = "text", x = 1.5, y = 318, label = "*", size = 6) -> dab_osml
   
 dab_osml
 ```
@@ -2283,19 +2297,32 @@ dab_osml
 
 ```{r}
 ggplot() +
-  geom_pointrange(
+  # geom_pointrange(
+  #   data = dab_all_clutch_avg,
+  #   aes(
+  #     x = Treatment,
+  #     y = CEWL_g_m2h_mean,
+  #     ymin = CEWL_g_m2h_min,
+  #     ymax = CEWL_g_m2h_max,
+  #     group = Mother_ID,
+  #     color = Treatment,
+  #     shape = Treatment
+  #   ),
+  #   position = position_jitter(width = 0.3),
+  #   size = 0.2, linewidth = 0.3,
+  #   alpha = 0.8,
+  #   show.legend = FALSE
+  # ) +
+  geom_point(
     data = dab_all_clutch_avg,
     aes(
       x = Treatment,
       y = CEWL_g_m2h_mean,
-      ymin = CEWL_g_m2h_min,
-      ymax = CEWL_g_m2h_max,
       group = Mother_ID,
       color = Treatment,
       shape = Treatment
     ),
     position = position_jitter(width = 0.3),
-    size = 0.2, linewidth = 0.3,
     alpha = 0.8,
     show.legend = FALSE
   ) +
@@ -2329,7 +2356,8 @@ ggplot() +
     color = "Treatment"
   ) +
   scale_y_continuous(
-    limits = c(4, 25), 
+    #limits = c(4, 25), # for pointrange
+    limits = c(4, 16), 
     breaks = seq(0, 30, by = 5)
   ) +
   scale_x_discrete(labels = c("C" = "Control", "W" = "Hydration")) +
@@ -2337,7 +2365,7 @@ ggplot() +
   theme(legend.position = "none") +
   
   # statistical labels
-  annotate(geom = "text", x = 1.5, y = 22, label = "NS", size = 2) -> dab_cewl
+  annotate(geom = "text", x = 1.5, y = 15, label = "NS", size = 2) -> dab_cewl
   
 dab_cewl
 ```
@@ -2359,7 +2387,7 @@ ggarrange(
 ) -> dab_diffs
 
 ggsave(
-  filename = "Fig3_neonate_dab_diffs.pdf",
+  filename = "Fig4_neonate_dab_diffs.pdf",
   plot = dab_diffs,
   path = "./results_figures",
   device = "pdf",
@@ -2370,7 +2398,7 @@ ggsave(
 )
 
 ggsave(
-  filename = "Fig3_neonate_dab_diffs.tiff",
+  filename = "Fig4_neonate_dab_diffs.tiff",
   plot = dab_diffs,
   path = "./results_figures",
   device = "tiff",
@@ -2631,19 +2659,32 @@ anova(shedtimelm)
 
 ```{r}
 ggplot() +
-  geom_pointrange(
+  # geom_pointrange(
+  #   data = dab_ps_compare_means,
+  #   aes(
+  #     x = timept,
+  #     y = Mass_g_mean,
+  #     ymin = Mass_g_mean-Mass_g_sd,
+  #     ymax = Mass_g_mean+Mass_g_sd,
+  #     group = Treatment,
+  #     color = Treatment,
+  #     shape = Treatment
+  #   ),
+  #   position = position_jitterdodge(jitter.width = 0.6, dodge.width = 0.6),
+  #   size = 0.2, linewidth = 0.3,
+  #   alpha = 0.6,
+  #   show.legend = FALSE
+  # ) +
+  geom_point(
     data = dab_ps_compare_means,
     aes(
       x = timept,
       y = Mass_g_mean,
-      ymin = Mass_g_mean-Mass_g_sd,
-      ymax = Mass_g_mean+Mass_g_sd,
       group = Treatment,
       color = Treatment,
       shape = Treatment
     ),
     position = position_jitterdodge(jitter.width = 0.6, dodge.width = 0.6),
-    size = 0.2, linewidth = 0.3,
     alpha = 0.6,
     show.legend = FALSE
   ) +
@@ -2691,7 +2732,8 @@ ggplot() +
     name = "Treatment"
   ) +
   scale_y_continuous(
-    limits = c(10, 21), 
+    #limits = c(10, 21), #ptrg
+    limits = c(10, 20),
     breaks = c(10, 15, 20),
     name = "Mass (g)"
   ) + 
@@ -2703,8 +2745,8 @@ ggplot() +
   theme(legend.position = "none") +
   
   # statistical labels
-  annotate(geom = "text", x = 1, y = 21, label = "NS", size = 2) +
-  annotate(geom = "text", x = 2, y = 21, label = "NS", size = 2) +
+  annotate(geom = "text", x = 1, y = 19.5, label = "NS", size = 2) +
+  annotate(geom = "text", x = 2, y = 19.5, label = "NS", size = 2) +
   annotate(geom = "text", x = 2.5, y = 12.8, label = "*", size = 6, 
            color = "darkgoldenrod2") +
   annotate(geom = "text", x = 2.5, y = 13.7, label = "*", size = 6,
@@ -2720,19 +2762,32 @@ neo_mass
 
 ```{r}
 ggplot() +
-  geom_pointrange(
+  # geom_pointrange(
+  #   data = dab_ps_compare_means,
+  #   aes(
+  #     x = timept,
+  #     y = Plasma_Osmol_Rep_mean_mean,
+  #     ymin = Plasma_Osmol_Rep_mean_mean-Plasma_Osmol_Rep_mean_sd,
+  #     ymax = Plasma_Osmol_Rep_mean_mean+Plasma_Osmol_Rep_mean_sd,
+  #     group = Treatment,
+  #     color = Treatment,
+  #     shape = Treatment
+  #   ),
+  #   position = position_jitterdodge(jitter.width = 0.6, dodge.width = 0.6),
+  #   size = 0.2, linewidth = 0.3,
+  #   alpha = 0.6,
+  #   show.legend = FALSE
+  # ) +
+  geom_point(
     data = dab_ps_compare_means,
     aes(
       x = timept,
       y = Plasma_Osmol_Rep_mean_mean,
-      ymin = Plasma_Osmol_Rep_mean_mean-Plasma_Osmol_Rep_mean_sd,
-      ymax = Plasma_Osmol_Rep_mean_mean+Plasma_Osmol_Rep_mean_sd,
       group = Treatment,
       color = Treatment,
       shape = Treatment
     ),
     position = position_jitterdodge(jitter.width = 0.6, dodge.width = 0.6),
-    size = 0.2, linewidth = 0.3,
     alpha = 0.6,
     show.legend = FALSE
   ) +
@@ -2780,8 +2835,9 @@ ggplot() +
     name = "Treatment"
   ) +
   scale_y_continuous(
-    limits = c(240, 410), 
-    breaks = seq(200, 400, by = 50),
+    #limits = c(240, 410), # ptrg
+    limits = c(270, 370), 
+    breaks = seq(260, 370, by = 20),
     name = expression('Osmolality (mmol '*kg^-1*')'),
   ) + 
   scale_x_discrete(
@@ -2792,11 +2848,11 @@ ggplot() +
   theme(legend.position = "none") +
   
   # statistical labels
-  annotate(geom = "text", x = 1, y = 405, label = "NS", size = 2) +
-  annotate(geom = "text", x = 2, y = 400, label = "*", size = 6) +
-  annotate(geom = "text", x = 2.5, y = 335, label = "*", size = 6, 
+  annotate(geom = "text", x = 1, y = 363, label = "NS", size = 2) +
+  annotate(geom = "text", x = 2, y = 361, label = "*", size = 6) +
+  annotate(geom = "text", x = 2.5, y = 338, label = "*", size = 6, 
            color = "darkgoldenrod2") +
-  annotate(geom = "text", x = 2.5, y = 290, label = "NS", size = 2,
+  annotate(geom = "text", x = 2.5, y = 288, label = "NS", size = 2,
            color = "royalblue4") -> neo_osmol
 
 neo_osmol
@@ -2812,19 +2868,32 @@ neo_osmol
 
 ```{r}
 ggplot() +
-  geom_pointrange(
+  # geom_pointrange(
+  #   data = dab_ps_compare_means,
+  #   aes(
+  #     x = timept,
+  #     y = CEWL_g_m2h_mean,
+  #     ymin = CEWL_g_m2h_mean-CEWL_g_m2h_sd,
+  #     ymax = CEWL_g_m2h_mean+CEWL_g_m2h_sd,
+  #     group = Treatment,
+  #     color = Treatment,
+  #     shape = Treatment
+  #   ),
+  #   position = position_jitterdodge(jitter.width = 0.6, dodge.width = 0.6),
+  #   size = 0.2, linewidth = 0.3,
+  #   alpha = 0.6,
+  #   show.legend = FALSE
+  # ) +
+  geom_point(
     data = dab_ps_compare_means,
     aes(
       x = timept,
       y = CEWL_g_m2h_mean,
-      ymin = CEWL_g_m2h_mean-CEWL_g_m2h_sd,
-      ymax = CEWL_g_m2h_mean+CEWL_g_m2h_sd,
       group = Treatment,
       color = Treatment,
       shape = Treatment
     ),
     position = position_jitterdodge(jitter.width = 0.6, dodge.width = 0.6),
-    size = 0.2, linewidth = 0.3,
     alpha = 0.6,
     show.legend = FALSE
   ) +
@@ -2872,8 +2941,9 @@ ggplot() +
     name = "Treatment"
   ) +
   scale_y_continuous(
-    limits = c(5, 23), 
-    breaks = seq(5, 20, by = 5),
+    #limits = c(5, 23), # pt rg
+    limits = c(7, 20), 
+    breaks = seq(10, 20, by = 5),
     name = expression('CEWL (g '*m^-2*' '*h^-1*')')
   ) + 
   scale_x_discrete(
@@ -2884,8 +2954,8 @@ ggplot() +
   theme(legend.position = "none") +
   
   # statistical labels
-  annotate(geom = "text", x = 1, y = 22.5, label = "NS", size = 2) +
-  annotate(geom = "text", x = 2, y = 22.5, label = "NS", size = 2) +
+  annotate(geom = "text", x = 1, y = 19.5, label = "NS", size = 2) +
+  annotate(geom = "text", x = 2, y = 19.5, label = "NS", size = 2) +
   annotate(geom = "text", x = 2.45, y = 15.5, label = "*", size = 6, 
            color = "darkgoldenrod2") +
   annotate(geom = "text", x = 2.55, y = 15.5, label = "*", size = 6,
